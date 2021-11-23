@@ -2,8 +2,14 @@ package main
 
 import (
 	"fmt"
+	"os"
 )
 
 func main() {
-	fmt.Println("Running program...")
+	if len(os.Args) <= 1 {
+		fmt.Println("Running REPL...")
+		return
+	}
+
+	fmt.Println("Running program", os.Args[1])
 }
