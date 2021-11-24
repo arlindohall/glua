@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 )
@@ -11,5 +12,23 @@ func main() {
 		return
 	}
 
-	fmt.Println("Running program", os.Args[1])
+	fileName := os.Args[1]
+
+	file, err := os.Open(fileName)
+
+	if err != nil {
+		fmt.Println("Error opening file", fileName, err)
+		return
+	}
+
+	reader := bufio.NewReader(file)
+
+	scanner := Scanner(reader)
+	tokens, err := scanner.ScanTokens()
+
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	fmt.Println(tokens)
 }
