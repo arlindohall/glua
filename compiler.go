@@ -1,43 +1,168 @@
 package main
 
+import (
+	"fmt"
+	"strconv"
+)
+
 const (
-	OpNil = iota
+	OpAdd = iota
+	OpConstant
+	OpNil
+	OpMult
 	OpReturn
 )
 
 type compiler struct {
-	text     []Token
-	bytecode []op
+	text  []Token
+	curr  int
+	chunk chunk
+}
+
+type chunk struct {
+	bytecode  []op
+	constants []value
 }
 
 type Function struct {
-	bytecode []op
-	name     string
+	chunk chunk
+	name  string
 }
 
 func Compile(text []Token) Function {
 	compiler := compiler{
 		text,
-		nil,
+		0,
+		chunk{},
 	}
+
+	compiler.compile()
 
 	return compiler.end()
 }
 
-func (compiler *compiler) emit(b1, b2 byte) {
-	compiler.bytecode = append(compiler.bytecode, op(b1))
-	compiler.bytecode = append(compiler.bytecode, op(b2))
+func (comp *compiler) compile() {
+	for comp.current()._type != TokenEof {
+		comp.statement()
+	}
 }
 
-func (compiler *compiler) emitReturn() {
-	compiler.emit(OpNil, OpReturn)
+func (comp *compiler) current() Token {
+	if comp.curr >= len(comp.text) {
+		return Token{
+			"",
+			TokenEof,
+		}
+	}
+
+	return comp.text[comp.curr]
 }
 
-func (compiler *compiler) end() Function {
-	compiler.emitReturn()
+// func (comp *compiler) peek() Token {
+// 	if comp.curr >= len(comp.text)-1 {
+// 		return Token{
+// 			"",
+// 			TokenEof,
+// 		}
+// 	}
+
+// 	return comp.text[comp.curr]
+// }
+
+func (comp *compiler) statement() {
+	comp.expression()
+	comp.consume(TokenSemicolon)
+}
+
+func (comp *compiler) expression() {
+	comp.term()
+}
+
+func (comp *compiler) term() {
+	comp.factor()
+
+	switch comp.current()._type {
+	case TokenPlus:
+		comp.advance()
+		comp.term()
+		comp.emitByte(OpAdd)
+	default:
+		return
+	}
+
+}
+
+func (comp *compiler) factor() {
+	comp.primary()
+
+	switch comp.current()._type {
+	case TokenStar:
+		comp.advance()
+		comp.factor()
+		comp.emitByte(OpMult)
+	default:
+		return
+	}
+
+}
+
+func (comp *compiler) primary() {
+	switch comp.current()._type {
+	case TokenNumber:
+		flt, err := strconv.ParseFloat(
+			comp.current().text,
+			64,
+		)
+
+		if err != nil {
+			panic(fmt.Sprint("Cannot parse number: ", comp.current().text))
+		}
+
+		b := comp.makeConstant(&number{flt})
+		comp.emitBytes(OpConstant, b)
+		comp.advance()
+	}
+}
+
+func (comp *compiler) advance() {
+	comp.curr += 1
+}
+
+func (comp *compiler) consume(tt TokenType) {
+	if comp.current()._type != tt {
+		panic(fmt.Sprint("Expected type ", tt, ", found ", comp.current()._type))
+	}
+
+	comp.advance()
+}
+
+func (comp *compiler) makeConstant(value value) byte {
+	index := len(comp.chunk.constants)
+
+	// todo: error if too many constants
+	comp.chunk.constants = append(comp.chunk.constants, value)
+
+	return byte(index)
+}
+
+func (comp *compiler) emitBytes(b1, b2 byte) {
+	comp.chunk.bytecode = append(comp.chunk.bytecode, op(b1))
+	comp.chunk.bytecode = append(comp.chunk.bytecode, op(b2))
+}
+
+func (comp *compiler) emitByte(b byte) {
+	comp.chunk.bytecode = append(comp.chunk.bytecode, op(b))
+}
+
+func (comp *compiler) emitReturn() {
+	comp.emitBytes(OpNil, OpReturn)
+}
+
+func (comp *compiler) end() Function {
+	comp.emitReturn()
 
 	return Function{
-		compiler.bytecode,
+		comp.chunk,
 		"",
 	}
 }

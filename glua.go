@@ -36,15 +36,15 @@ func main() {
 	}
 
 	if PrintTokens {
-		fmt.Println("Tokens:", tokens)
+		debugTokens(tokens)
 	}
 
-	bytecode := Compile(tokens).bytecode
+	chunk := Compile(tokens).chunk
 
 	if PrintBytecode {
-		fmt.Println("Bytecode:", bytecode)
+		debugPrint(chunk)
 	}
 
 	// todo: use a VM struct that is re-used on Repl
-	Run(bytecode)
+	Run(chunk)
 }

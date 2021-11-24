@@ -16,3 +16,29 @@ And to run the code I use
 ```
 go run . <filename>
 ```
+
+## Grammar
+
+I based this grammar on the Lox Grammar[1]
+
+```
+Program := Statement +
+
+Statement := Expression ';'
+
+Expression := Term
+
+Term := Factor ( ('+' | '-') Factor )
+
+Factor := Primary ( ('+' | '-') Primary )
+
+Primary := Number | String | Word
+
+Number := [0-9] +
+
+String := '"' <anything> '"'
+
+Word := [a-zA-Z] [a-zA-Z0-9_-] *
+```
+
+[1]: https://craftinginterpreters.com/appendix-i.html

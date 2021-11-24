@@ -23,6 +23,7 @@ const (
 	TokenNumber = iota
 	TokenEof
 	TokenPlus
+	TokenStar
 	TokenSemicolon
 )
 

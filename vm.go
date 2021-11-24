@@ -1,31 +1,34 @@
 package main
 
-import "fmt"
-
 type VM struct {
-	ip       int
-	bytecode []op
+	ip    int
+	chunk chunk
 }
 
 type op byte
 
-func Run(bytecode []op) {
-	vm := VM{0, bytecode}
+func Run(chunk chunk) {
+	vm := VM{0, chunk}
 	vm.run()
 }
 
 func (vm *VM) run() {
 	for {
-		op := vm.bytecode[vm.ip]
-		vm.ip += 1
+		op := vm.current()
 
 		if TraceExecution {
-			fmt.Println("Running op=", op)
+			debugTrace(vm)
 		}
 
 		switch op {
 		case OpReturn:
 			return
 		}
+
+		vm.ip += 1
 	}
+}
+
+func (vm *VM) current() op {
+	return vm.chunk.bytecode[vm.ip]
 }
