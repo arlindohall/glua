@@ -39,12 +39,12 @@ func main() {
 		debugTokens(tokens)
 	}
 
-	chunk := Compile(tokens).chunk
+	function := Compile(tokens)
 
 	if PrintBytecode {
-		debugPrint(chunk)
+		debugPrint(function)
 	}
 
 	// todo: use a VM struct that is re-used on Repl
-	Run(chunk)
+	Interpret(function.chunk)
 }

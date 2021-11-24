@@ -10,6 +10,7 @@ const (
 	OpConstant
 	OpNil
 	OpMult
+	OpPop
 	OpReturn
 )
 
@@ -71,7 +72,9 @@ func (comp *compiler) current() Token {
 
 func (comp *compiler) statement() {
 	comp.expression()
+	// todo: Lua doesn't have semicolons so not sure what I was thinking
 	comp.consume(TokenSemicolon)
+	comp.emitByte(OpPop)
 }
 
 func (comp *compiler) expression() {
