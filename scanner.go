@@ -33,25 +33,6 @@ func Scanner(reader *bufio.Reader) *scanner {
 	}
 }
 
-func (tt TokenType) String() string {
-	switch tt {
-	case TokenNumber:
-		return "TokenNumber"
-	case TokenEof:
-		return "TokenEof"
-	case TokenPlus:
-		return "TokenPlus"
-	case TokenSemicolon:
-		return "TokenSemicolon"
-	default:
-		panic("Unrecognized TokenType")
-	}
-}
-
-func (t Token) String() string {
-	return fmt.Sprintf("%v/\"%v\"", t._type, t.text)
-}
-
 func (scanner *scanner) ScanTokens() ([]Token, error) {
 	var tokens []Token
 

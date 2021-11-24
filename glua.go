@@ -6,8 +6,13 @@ import (
 	"os"
 )
 
+const (
+	PrintTokens, PrintBytecode, TraceExecution bool = true, true, true
+)
+
 func main() {
 	if len(os.Args) <= 1 {
+		// todo: Use repl
 		fmt.Println("Running REPL...")
 		return
 	}
@@ -30,5 +35,16 @@ func main() {
 		fmt.Println(err)
 	}
 
-	fmt.Println(tokens)
+	if PrintTokens {
+		fmt.Println("Tokens:", tokens)
+	}
+
+	bytecode := Compile(tokens).bytecode
+
+	if PrintBytecode {
+		fmt.Println("Bytecode:", bytecode)
+	}
+
+	// todo: use a VM struct that is re-used on Repl
+	Run(bytecode)
 }
