@@ -14,7 +14,13 @@ const (
 func main() {
 	if len(os.Args) <= 1 {
 		// todo: Use repl
+		reader := bufio.NewReader(os.Stdin)
 		fmt.Println("Running REPL...")
+		fmt.Print("> ")
+		for line, _, err := reader.ReadLine(); err == nil; line, _, err = reader.ReadLine() {
+			fmt.Print("> ")
+			fromString(string(line)).Interpret()
+		}
 		return
 	}
 
@@ -78,5 +84,4 @@ func (text *BufioInterpreter) Interpret() {
 
 	// todo: use a VM struct that is re-used on Repl
 	Interpret(function.chunk)
-
 }

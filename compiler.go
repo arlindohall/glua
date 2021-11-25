@@ -104,6 +104,8 @@ func (comp *compiler) term() {
 		comp.term()
 		comp.emitByte(OpSubtract)
 	case TokenEof, TokenSemicolon:
+		// todo: infinite loop somewhere in here when unrecognized token type
+		// maybe instead just require semicolon, maybe this should be an error?
 		return
 	default:
 		return
@@ -144,6 +146,8 @@ func (comp *compiler) primary() {
 		b := comp.makeConstant(&number{flt})
 		comp.emitBytes(OpConstant, b)
 		comp.advance()
+	default:
+		comp.error(fmt.Sprint("Unexpected token:", comp.current()))
 	}
 }
 
