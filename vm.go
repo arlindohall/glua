@@ -39,9 +39,19 @@ func (vm *VM) run() {
 			vm.push(val)
 		case OpNil:
 			vm.push(nilVal{})
-		case OpAdd:
-			val1 := vm.pop()
+		case OpSubtract:
 			val2 := vm.pop()
+			val1 := vm.pop()
+
+			switch {
+			case val1.isNumber() && val2.isNumber():
+				vm.push(number{val1.asNumber() - val2.asNumber()})
+			default:
+				panic("Cannot subtract two non-numbers")
+			}
+		case OpAdd:
+			val2 := vm.pop()
+			val1 := vm.pop()
 
 			switch {
 			case val1.isNumber() && val2.isNumber():

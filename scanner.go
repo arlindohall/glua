@@ -22,6 +22,7 @@ type scanner struct {
 const (
 	TokenNumber = iota
 	TokenEof
+	TokenMinus
 	TokenPlus
 	TokenStar
 	TokenSemicolon
@@ -123,6 +124,9 @@ func (scanner *scanner) scanToken() (Token, error) {
 	case r == '+':
 		scanner.advance()
 		return Token{"+", TokenPlus}, nil
+	case r == '-':
+		scanner.advance()
+		return Token{"-", TokenMinus}, nil
 	case r == ';':
 		scanner.advance()
 		return Token{";", TokenSemicolon}, nil
@@ -144,7 +148,9 @@ func (scanner *scanner) scanNumber() (Token, error) {
 		return Token{}, err
 	}
 
-	scanner.revert()
+	if err != io.EOF {
+		scanner.revert()
+	}
 
 	return Token{
 		text:  string(runes),

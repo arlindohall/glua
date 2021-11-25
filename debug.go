@@ -33,6 +33,8 @@ func (op op) String() string {
 		return "OpReturn"
 	case OpAdd:
 		return "OpAdd"
+	case OpSubtract:
+		return "OpSubtract"
 	case OpMult:
 		return "OpMult"
 	default:
@@ -43,7 +45,7 @@ func (op op) String() string {
 func debugTrace(vm *VM) {
 	var trace func(int, *VM)
 	switch vm.previous() {
-	case OpAdd, OpNil, OpReturn, OpPop:
+	case OpAdd, OpSubtract, OpNil, OpReturn, OpPop:
 		trace = traceInstruction
 	case OpConstant:
 		trace = traceConstant
@@ -77,7 +79,7 @@ func debugPrint(function Function) {
 		switch bytecode[i] {
 		case OpConstant:
 			print = printConstant
-		case OpAdd, OpNil, OpReturn, OpPop:
+		case OpAdd, OpSubtract, OpNil, OpReturn, OpPop:
 			print = printInstruction
 		default:
 			panic(fmt.Sprint("Unknown op for debug print: ", bytecode[i]))

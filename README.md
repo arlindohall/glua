@@ -24,6 +24,8 @@ I based this grammar on the Lox Grammar[1]
 ```
 Program := Declaration +
 
+# I can't remember semicolon rules in Lua but for now I'm going to
+# use them to deliniate the end of an expression
 Declaration := Statement ( ';' )?
 
 Statement := ForStatement

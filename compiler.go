@@ -12,6 +12,7 @@ const (
 	OpMult
 	OpPop
 	OpReturn
+	OpSubtract
 )
 
 type compiler struct {
@@ -96,6 +97,10 @@ func (comp *compiler) term() {
 		comp.advance()
 		comp.term()
 		comp.emitByte(OpAdd)
+	case TokenMinus:
+		comp.advance()
+		comp.term()
+		comp.emitByte(OpSubtract)
 	default:
 		return
 	}
