@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"os"
 	"unicode"
 )
 
@@ -24,6 +25,7 @@ const (
 	TokenEof
 	TokenMinus
 	TokenPlus
+	TokenSlash
 	TokenStar
 	TokenSemicolon
 )
@@ -85,7 +87,7 @@ func (scanner *scanner) advance() {
 	_, _, err := scanner.reader.ReadRune()
 
 	if err != nil {
-		panic(err)
+		scanner.error(err.Error())
 	}
 }
 
@@ -93,7 +95,7 @@ func (scanner *scanner) revert() {
 	err := scanner.reader.UnreadRune()
 
 	if err != nil {
-		panic(err)
+		scanner.error(err.Error())
 	}
 }
 
@@ -116,7 +118,7 @@ func (scanner *scanner) scanToken() (Token, error) {
 	case err == io.EOF:
 		return Token{"", TokenEof}, err
 	case err != nil:
-		panic(fmt.Sprint("Error reading next character ", err))
+		scanner.error(fmt.Sprint("Error reading next character ", err))
 	case isNumber(r):
 		return scanner.scanNumber()
 	case isAlpha(r):
@@ -127,12 +129,20 @@ func (scanner *scanner) scanToken() (Token, error) {
 	case r == '-':
 		scanner.advance()
 		return Token{"-", TokenMinus}, nil
+	case r == '*':
+		scanner.advance()
+		return Token{"*", TokenStar}, nil
+	case r == '/':
+		scanner.advance()
+		return Token{"/", TokenSlash}, nil
 	case r == ';':
 		scanner.advance()
 		return Token{";", TokenSemicolon}, nil
 	default:
-		panic(fmt.Sprint("Unexpected character '", string([]rune{r}), "'"))
+		scanner.error(fmt.Sprint("Unexpected character '", string([]rune{r}), "'"))
 	}
+
+	panic("unreachable")
 }
 
 func (scanner *scanner) scanNumber() (Token, error) {
@@ -179,4 +189,9 @@ func isAlpha(r rune) bool {
 	default:
 		return false
 	}
+}
+
+func (scanner *scanner) error(message string) {
+	fmt.Fprintf(os.Stderr, "Scan error ---> %s\n", message)
+	os.Exit(1)
 }

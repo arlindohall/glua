@@ -1,6 +1,9 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"os"
+)
 
 func (tt TokenType) String() string {
 	switch tt {
@@ -10,8 +13,14 @@ func (tt TokenType) String() string {
 		return "TokenEof"
 	case TokenPlus:
 		return "TokenPlus"
+	case TokenMinus:
+		return "TokenMinus"
 	case TokenSemicolon:
 		return "TokenSemicolon"
+	case TokenSlash:
+		return "TokenSlash"
+	case TokenStar:
+		return "TokenStar"
 	default:
 		panic("Unrecognized TokenType")
 	}
@@ -37,6 +46,8 @@ func (op op) String() string {
 		return "OpSubtract"
 	case OpMult:
 		return "OpMult"
+	case OpDivide:
+		return "OpDivide"
 	default:
 		panic(fmt.Sprint("Unrecognized: ", byte(op)))
 	}
@@ -45,7 +56,7 @@ func (op op) String() string {
 func debugTrace(vm *VM) {
 	var trace func(int, *VM)
 	switch vm.previous() {
-	case OpAdd, OpSubtract, OpNil, OpReturn, OpPop:
+	case OpAdd, OpSubtract, OpMult, OpDivide, OpNil, OpReturn, OpPop:
 		trace = traceInstruction
 	case OpConstant:
 		trace = traceConstant
@@ -57,20 +68,20 @@ func debugTrace(vm *VM) {
 }
 
 func traceInstruction(i int, vm *VM) {
-	fmt.Printf("%04d | %-12v      %v\n", i, vm.previous(), vm.stack[:vm.stackSize])
+	fmt.Fprintf(os.Stderr, "%04d | %-12v      %v\n", i, vm.previous(), vm.stack[:vm.stackSize])
 }
 
 func traceConstant(i int, vm *VM) {
-	fmt.Printf("%04d | %-12v %-4d %v\n", i, vm.previous(), vm.current(), vm.stack[:vm.stackSize])
+	fmt.Fprintf(os.Stderr, "%04d | %-12v %-4d %v\n", i, vm.previous(), vm.current(), vm.stack[:vm.stackSize])
 }
 
 func debugPrint(function Function) {
 	bytecode := function.chunk.bytecode
 
 	if function.name == "" {
-		fmt.Println("---------- <script> ----------")
+		fmt.Fprintln(os.Stderr, "---------- <script> ----------")
 	} else {
-		fmt.Println("----------", function.name, "----------")
+		fmt.Fprintln(os.Stderr, "----------", function.name, "----------")
 	}
 
 	i := 0
@@ -79,31 +90,35 @@ func debugPrint(function Function) {
 		switch bytecode[i] {
 		case OpConstant:
 			print = printConstant
-		case OpAdd, OpSubtract, OpNil, OpReturn, OpPop:
+		case OpAdd, OpSubtract, OpMult, OpDivide, OpNil, OpReturn, OpPop:
 			print = printInstruction
 		default:
 			panic(fmt.Sprint("Unknown op for debug print: ", bytecode[i]))
 		}
 		i = print(i, bytecode)
 	}
+
+	fmt.Fprintln(os.Stderr)
 }
 
 func printInstruction(i int, bytecode []op) int {
-	fmt.Printf("%04d | %-12v\n", i, bytecode[i])
+	fmt.Fprintf(os.Stderr, "%04d | %-12v\n", i, bytecode[i])
 	return i + 1
 }
 
 func printConstant(i int, bytecode []op) int {
-	fmt.Printf("%04d | %-12v %-4d\n", i, bytecode[i], bytecode[i+1])
+	fmt.Fprintf(os.Stderr, "%04d | %-12v %-4d\n", i, bytecode[i], bytecode[i+1])
 	return i + 2
 }
 
 func debugTokens(tokens []Token) {
 	for _, token := range tokens {
 		if token._type == TokenSemicolon {
-			fmt.Println(";")
+			fmt.Fprintln(os.Stderr, ";")
 			continue
 		}
-		fmt.Print(token._type, " ")
+		fmt.Fprint(os.Stderr, token, " ")
 	}
+
+	fmt.Fprintln(os.Stderr)
 }

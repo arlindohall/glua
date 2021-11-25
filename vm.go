@@ -1,6 +1,9 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"os"
+)
 
 type VM struct {
 	ip        int
@@ -40,15 +43,11 @@ func (vm *VM) run() {
 		case OpNil:
 			vm.push(nilVal{})
 		case OpSubtract:
-			val2 := vm.pop()
-			val1 := vm.pop()
-
-			switch {
-			case val1.isNumber() && val2.isNumber():
-				vm.push(number{val1.asNumber() - val2.asNumber()})
-			default:
-				panic("Cannot subtract two non-numbers")
-			}
+			vm.arithmetic("subtract", func(a, b float64) float64 { return a - b })
+		case OpDivide:
+			vm.arithmetic("divide", func(a, b float64) float64 { return a / b })
+		case OpMult:
+			vm.arithmetic("multiply", func(a, b float64) float64 { return a * b })
 		case OpAdd:
 			val2 := vm.pop()
 			val1 := vm.pop()
@@ -57,10 +56,10 @@ func (vm *VM) run() {
 			case val1.isNumber() && val2.isNumber():
 				vm.push(number{val1.asNumber() + val2.asNumber()})
 			default:
-				panic("Cannot add two non-numbers")
+				vm.error("Cannot add two non-numbers")
 			}
 		default:
-			panic(fmt.Sprint("Do not know how to perform: ", op))
+			vm.error(fmt.Sprint("Do not know how to perform: ", op))
 		}
 	}
 }
@@ -83,6 +82,18 @@ func (vm *VM) push(val value) {
 	vm.stackSize += 1
 }
 
+func (vm *VM) arithmetic(name string, op func(float64, float64) float64) {
+	val2 := vm.pop()
+	val1 := vm.pop()
+
+	switch {
+	case val1.isNumber() && val2.isNumber():
+		vm.push(number{op(val1.asNumber(), val2.asNumber())})
+	default:
+		vm.error(fmt.Sprintf("Cannot %s two non-numbers", name))
+	}
+}
+
 func (vm *VM) readByte() op {
 	c := vm.current()
 	vm.advance()
@@ -99,4 +110,9 @@ func (vm *VM) previous() op {
 
 func (vm *VM) current() op {
 	return vm.chunk.bytecode[vm.ip]
+}
+
+func (vm *VM) error(message string) {
+	fmt.Fprintf(os.Stdout, "Runtime error ----> %s", message)
+	os.Exit(3)
 }

@@ -2,12 +2,14 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"strconv"
 )
 
 const (
 	OpAdd = iota
 	OpConstant
+	OpDivide
 	OpNil
 	OpMult
 	OpPop
@@ -101,6 +103,8 @@ func (comp *compiler) term() {
 		comp.advance()
 		comp.term()
 		comp.emitByte(OpSubtract)
+	case TokenEof, TokenSemicolon:
+		return
 	default:
 		return
 	}
@@ -115,6 +119,10 @@ func (comp *compiler) factor() {
 		comp.advance()
 		comp.factor()
 		comp.emitByte(OpMult)
+	case TokenSlash:
+		comp.advance()
+		comp.factor()
+		comp.emitByte(OpDivide)
 	default:
 		return
 	}
@@ -130,7 +138,7 @@ func (comp *compiler) primary() {
 		)
 
 		if err != nil {
-			panic(fmt.Sprint("Cannot parse number: ", comp.current().text))
+			comp.error(fmt.Sprint("Cannot parse number: ", comp.current().text))
 		}
 
 		b := comp.makeConstant(&number{flt})
@@ -145,7 +153,7 @@ func (comp *compiler) advance() {
 
 func (comp *compiler) consume(tt TokenType) {
 	if comp.current()._type != tt {
-		panic(fmt.Sprint("Expected type ", tt, ", found ", comp.current()._type))
+		comp.error(fmt.Sprint("Expected type ", tt, ", found ", comp.current()._type))
 	}
 
 	comp.advance()
@@ -171,6 +179,12 @@ func (comp *compiler) emitByte(b byte) {
 
 func (comp *compiler) emitReturn() {
 	comp.emitBytes(OpNil, OpReturn)
+}
+
+// todo: track line numbers in tokens and print error line
+func (comp *compiler) error(message string) {
+	fmt.Fprintf(os.Stderr, "Compile error ---> %s\n", message)
+	os.Exit(2)
 }
 
 func (comp *compiler) end() Function {

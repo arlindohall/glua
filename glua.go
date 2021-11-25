@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"strings"
 )
 
 const (
@@ -28,7 +29,37 @@ func main() {
 
 	reader := bufio.NewReader(file)
 
-	scanner := Scanner(reader)
+	fromBufio(reader).Interpret()
+}
+
+// todo: Interpret should return a value for printing
+type Glua interface {
+	Interpret()
+}
+
+type BufioInterpreter bufio.Reader
+
+type StringInterpreter string
+
+func fromString(text string) Glua {
+	return StringInterpreter(text)
+}
+
+func fromBufio(reader *bufio.Reader) Glua {
+	interpreter := BufioInterpreter(*reader)
+	return &interpreter
+}
+
+func (text StringInterpreter) Interpret() {
+	reader := bufio.NewReader(strings.NewReader(string(text)))
+
+	fromBufio(reader).Interpret()
+}
+
+func (text *BufioInterpreter) Interpret() {
+	reader := bufio.Reader(*text)
+
+	scanner := Scanner(&reader)
 	tokens, err := scanner.ScanTokens()
 
 	if err != nil {
@@ -47,4 +78,5 @@ func main() {
 
 	// todo: use a VM struct that is re-used on Repl
 	Interpret(function.chunk)
+
 }
