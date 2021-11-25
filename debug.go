@@ -7,6 +7,8 @@ import (
 
 func (tt TokenType) String() string {
 	switch tt {
+	case TokenError:
+		return "TokenError"
 	case TokenNumber:
 		return "TokenNumber"
 	case TokenEof:

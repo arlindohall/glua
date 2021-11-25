@@ -18,8 +18,8 @@ func main() {
 		fmt.Println("Running REPL...")
 		fmt.Print("> ")
 		for line, _, err := reader.ReadLine(); err == nil; line, _, err = reader.ReadLine() {
-			fmt.Print("> ")
 			fromString(string(line)).Interpret()
+			fmt.Print("> ")
 		}
 		return
 	}

@@ -21,7 +21,8 @@ type scanner struct {
 }
 
 const (
-	TokenNumber = iota
+	TokenError = iota
+	TokenNumber
 	TokenEof
 	TokenMinus
 	TokenPlus
@@ -169,7 +170,14 @@ func (scanner *scanner) scanNumber() (Token, error) {
 }
 
 func (scanner *scanner) scanWord() (Token, error) {
-	return Token{}, nil
+	var word []rune
+	for c, err := scanner.scanRune(); err == nil && isAlpha(c) || isNumber(c); c, err = scanner.scanRune() {
+		word = append(word, c)
+	}
+	return Token{
+		string(word),
+		TokenError,
+	}, nil
 }
 
 func isNumber(r rune) bool {
