@@ -44,7 +44,7 @@ func Compile(text []Token) Function {
 
 func (comp *compiler) compile() {
 	for comp.current()._type != TokenEof {
-		comp.statement()
+		comp.declaration()
 	}
 }
 
@@ -70,10 +70,17 @@ func (comp *compiler) current() Token {
 // 	return comp.text[comp.curr]
 // }
 
+func (comp *compiler) declaration() {
+	comp.statement()
+
+	// Lua allows semicolons but they are not required
+	if comp.current()._type == TokenSemicolon {
+		comp.consume(TokenSemicolon)
+	}
+}
+
 func (comp *compiler) statement() {
 	comp.expression()
-	// todo: Lua doesn't have semicolons so not sure what I was thinking
-	comp.consume(TokenSemicolon)
 	comp.emitByte(OpPop)
 }
 

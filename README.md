@@ -22,9 +22,12 @@ go run . <filename>
 I based this grammar on the Lox Grammar[1]
 
 ```
-Program := Statement +
+Program := Declaration +
 
-Statement := Expression ';'
+Declaration := Statement ( ';' )?
+
+Statement := ForStatement
+    | Expression
 
 Expression := Term
 
@@ -36,7 +39,12 @@ Primary := Number | String | Word
 
 Number := [0-9] +
 
-String := '"' <anything> '"'
+String := '"' StringChar * '"'
+
+# Note: you can backslash escape quotes, more may be added
+# Lua uses backslashes, but I haven't bothered to look up all
+# the escaped characters
+StringChar := ! ( '\' | '"') | '\"'
 
 Word := [a-zA-Z] [a-zA-Z0-9_-] *
 ```
