@@ -13,3 +13,9 @@ func TestCompileArithmeticOperations(t *testing.T) {
 
 	fromString(text).Interpret()
 }
+
+func TestCompileLotsOfNegatives(t *testing.T) {
+	text := "-1 * -1 * -1 * -1 * -1 + 1"
+
+	fromString(text).Interpret()
+}
