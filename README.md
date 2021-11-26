@@ -33,7 +33,7 @@ Statement := ForStatement
 
 Expression := Term
 
-Term := Factor ( ('+' | '-') Factor )
+Term := ( '-' )? Factor ( ('+' | '-') Factor )
 
 Factor := Primary ( ('+' | '-') Primary )
 

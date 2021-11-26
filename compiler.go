@@ -12,6 +12,7 @@ const (
 	OpDivide
 	OpNil
 	OpMult
+	OpNegate
 	OpPop
 	OpReturn
 	OpSubtract
@@ -106,6 +107,7 @@ func (comp *compiler) term() {
 	case TokenEof, TokenSemicolon:
 		// todo: infinite loop somewhere in here when unrecognized token type
 		// maybe instead just require semicolon, maybe this should be an error?
+		// Should this collapse into the branch below?
 		return
 	default:
 		return
@@ -114,7 +116,14 @@ func (comp *compiler) term() {
 }
 
 func (comp *compiler) factor() {
-	comp.primary()
+
+	if comp.current()._type == TokenMinus {
+		comp.advance()
+		comp.factor()
+		comp.emitByte(OpNegate)
+	} else {
+		comp.primary()
+	}
 
 	switch comp.current()._type {
 	case TokenStar:
@@ -186,6 +195,7 @@ func (comp *compiler) emitReturn() {
 }
 
 // todo: track line numbers in tokens and print error line
+// todo: error handling
 func (comp *compiler) error(message string) {
 	fmt.Fprintf(os.Stderr, "Compile error ---> %s\n", message)
 	os.Exit(2)

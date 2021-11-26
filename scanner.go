@@ -199,6 +199,7 @@ func isAlpha(r rune) bool {
 	}
 }
 
+// todo: error handling
 func (scanner *scanner) error(message string) {
 	fmt.Fprintf(os.Stderr, "Scan error ---> %s\n", message)
 	os.Exit(1)

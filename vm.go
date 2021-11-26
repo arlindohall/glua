@@ -48,6 +48,9 @@ func (vm *VM) run() {
 			vm.arithmetic("divide", func(a, b float64) float64 { return a / b })
 		case OpMult:
 			vm.arithmetic("multiply", func(a, b float64) float64 { return a * b })
+		case OpNegate:
+			val := vm.pop().asNumber()
+			vm.push(number{-val})
 		case OpAdd:
 			val2 := vm.pop()
 			val1 := vm.pop()
@@ -112,6 +115,7 @@ func (vm *VM) current() op {
 	return vm.chunk.bytecode[vm.ip]
 }
 
+// todo: error handling
 func (vm *VM) error(message string) {
 	fmt.Fprintf(os.Stdout, "Runtime error ----> %s", message)
 	os.Exit(3)

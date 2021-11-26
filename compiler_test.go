@@ -7,3 +7,9 @@ func TestCompileSingleExpression(t *testing.T) {
 
 	fromString(text).Interpret()
 }
+
+func TestCompileArithmeticOperations(t *testing.T) {
+	text := "-1 * 2 + -3 + 4"
+
+	fromString(text).Interpret()
+}
