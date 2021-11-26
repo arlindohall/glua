@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"strconv"
 )
 
@@ -22,11 +21,12 @@ type compiler struct {
 	text  []Token
 	curr  int
 	chunk chunk
+	err   error
 }
 
 type chunk struct {
 	bytecode  []op
-	constants []value
+	constants []Value
 }
 
 type Function struct {
@@ -34,11 +34,12 @@ type Function struct {
 	name  string
 }
 
-func Compile(text []Token) Function {
+func Compile(text []Token) (Function, error) {
 	compiler := compiler{
 		text,
 		0,
 		chunk{},
+		nil,
 	}
 
 	compiler.compile()
@@ -172,7 +173,7 @@ func (comp *compiler) consume(tt TokenType) {
 	comp.advance()
 }
 
-func (comp *compiler) makeConstant(value value) byte {
+func (comp *compiler) makeConstant(value Value) byte {
 	index := len(comp.chunk.constants)
 
 	// todo: error if too many constants
@@ -194,18 +195,28 @@ func (comp *compiler) emitReturn() {
 	comp.emitBytes(OpNil, OpReturn)
 }
 
-// todo: track line numbers in tokens and print error line
-// todo: error handling
-func (comp *compiler) error(message string) {
-	fmt.Fprintf(os.Stderr, "Compile error ---> %s\n", message)
-	os.Exit(2)
-}
-
-func (comp *compiler) end() Function {
+func (comp *compiler) end() (Function, error) {
 	comp.emitReturn()
+
+	if comp.err != nil {
+		return Function{}, comp.err
+	}
 
 	return Function{
 		comp.chunk,
 		"",
-	}
+	}, nil
+}
+
+func (comp *compiler) error(message string) {
+	comp.err = CompileError{message}
+}
+
+type CompileError struct {
+	message string
+}
+
+// todo: track line numbers in tokens and print error line
+func (ce CompileError) Error() string {
+	return fmt.Sprintf("Compile error ---> %s", ce.message)
 }

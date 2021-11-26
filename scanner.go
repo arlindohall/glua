@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"os"
 	"unicode"
 )
 
@@ -140,7 +139,9 @@ func (scanner *scanner) scanToken() (Token, error) {
 		scanner.advance()
 		return Token{";", TokenSemicolon}, nil
 	default:
+		scanner.advance()
 		scanner.error(fmt.Sprint("Unexpected character '", string([]rune{r}), "'"))
+		return Token{}, scanner.err
 	}
 
 	panic("unreachable")
@@ -190,17 +191,19 @@ func isNumber(r rune) bool {
 }
 
 func isAlpha(r rune) bool {
-	switch unicode.ToLower(r) {
-	case 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
-		'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z':
-		return true
-	default:
-		return false
-	}
+	lower := unicode.ToLower(r)
+	return 'a' <= lower && 'z' >= lower
 }
 
-// todo: error handling
 func (scanner *scanner) error(message string) {
-	fmt.Fprintf(os.Stderr, "Scan error ---> %s\n", message)
-	os.Exit(1)
+	scanner.err = ScanError{message}
+}
+
+type ScanError struct {
+	message string
+}
+
+// todo: line numbers
+func (se ScanError) Error() string {
+	return fmt.Sprintf("Scan error ---> %s", se.message)
 }

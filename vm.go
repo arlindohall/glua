@@ -2,28 +2,32 @@ package main
 
 import (
 	"fmt"
-	"os"
 )
 
 type VM struct {
 	ip        int
 	chunk     chunk
-	stack     []value
+	stack     []Value
 	stackSize int
+	err       error
 }
 
 type op byte
 
-func Interpret(chunk chunk) {
-	vm := VM{0, chunk, nil, 0}
+func Interpret(chunk chunk) (Value, error) {
+	vm := VM{0, chunk, nil, 0, nil}
+
 	// todo: call function
 	if TraceExecution {
 		fmt.Println("========== <script> ==========")
 	}
-	vm.run()
+
+	val := vm.run()
+
+	return val, vm.err
 }
 
-func (vm *VM) run() {
+func (vm *VM) run() Value {
 	for {
 		op := vm.readByte()
 
@@ -33,7 +37,7 @@ func (vm *VM) run() {
 
 		switch op {
 		case OpReturn:
-			return
+			return vm.pop()
 		case OpPop:
 			vm.pop()
 		case OpConstant:
@@ -67,7 +71,7 @@ func (vm *VM) run() {
 	}
 }
 
-func (vm *VM) pop() value {
+func (vm *VM) pop() Value {
 	vm.stackSize -= 1
 	val := vm.stack[vm.stackSize]
 	vm.stack[vm.stackSize] = nil
@@ -75,7 +79,7 @@ func (vm *VM) pop() value {
 	return val
 }
 
-func (vm *VM) push(val value) {
+func (vm *VM) push(val Value) {
 	if vm.stackSize >= len(vm.stack) {
 		vm.stack = append(vm.stack, val)
 	} else {
@@ -117,6 +121,13 @@ func (vm *VM) current() op {
 
 // todo: error handling
 func (vm *VM) error(message string) {
-	fmt.Fprintf(os.Stdout, "Runtime error ----> %s", message)
-	os.Exit(3)
+	vm.err = RuntimeError{message}
+}
+
+type RuntimeError struct {
+	message string
+}
+
+func (re RuntimeError) Error() string {
+	return fmt.Sprintf("Runtime error ---> %s", re.message)
 }

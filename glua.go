@@ -69,19 +69,33 @@ func (text *BufioInterpreter) Interpret() {
 	tokens, err := scanner.ScanTokens()
 
 	if err != nil {
-		fmt.Println(err)
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
 	}
 
 	if PrintTokens {
 		debugTokens(tokens)
 	}
 
-	function := Compile(tokens)
+	function, err := Compile(tokens)
+
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(2)
+	}
 
 	if PrintBytecode {
 		debugPrint(function)
 	}
 
 	// todo: use a VM struct that is re-used on Repl
-	Interpret(function.chunk)
+	val, err := Interpret(function.chunk)
+
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(3)
+	}
+
+	// todo: move error handling a level up to make repl resilient
+	fmt.Println(val)
 }
