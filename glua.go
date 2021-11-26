@@ -13,18 +13,33 @@ const (
 
 func main() {
 	if len(os.Args) <= 1 {
-		// todo: Use repl
-		reader := bufio.NewReader(os.Stdin)
-		fmt.Println("Running REPL...")
-		fmt.Print("> ")
-		for line, _, err := reader.ReadLine(); err == nil; line, _, err = reader.ReadLine() {
-			fromString(string(line)).Interpret()
-			fmt.Print("> ")
-		}
+		repl()
 		return
 	}
 
 	fileName := os.Args[1]
+
+	runFile(fileName)
+}
+
+func repl() {
+	reader := bufio.NewReader(os.Stdin)
+
+	fmt.Println("Running REPL...")
+	fmt.Print("> ")
+
+	for line, _, err := reader.ReadLine(); err == nil; line, _, err = reader.ReadLine() {
+		_, err := fromString(string(line)).Interpret()
+
+		if err != nil {
+			fmt.Println(err)
+		}
+
+		fmt.Print("> ")
+	}
+}
+
+func runFile(fileName string) {
 
 	file, err := os.Open(fileName)
 
@@ -35,12 +50,31 @@ func main() {
 
 	reader := bufio.NewReader(file)
 
-	fromBufio(reader).Interpret()
+	val, err := fromBufio(reader).Interpret()
+
+	if err != nil {
+		switch err.(type) {
+		case ScanError:
+			fmt.Println(err)
+			os.Exit(1)
+		case CompileError:
+			fmt.Println(err)
+			os.Exit(2)
+		case RuntimeError:
+			fmt.Println(err)
+			os.Exit(3)
+		default:
+			fmt.Println("Unexpected error: ", err)
+			os.Exit(4)
+		}
+	}
+
+	fmt.Println("Result: ", val)
 }
 
 // todo: Interpret should return a value for printing
 type Glua interface {
-	Interpret()
+	Interpret() (Value, error)
 }
 
 type BufioInterpreter bufio.Reader
@@ -56,21 +90,20 @@ func fromBufio(reader *bufio.Reader) Glua {
 	return &interpreter
 }
 
-func (text StringInterpreter) Interpret() {
+func (text StringInterpreter) Interpret() (Value, error) {
 	reader := bufio.NewReader(strings.NewReader(string(text)))
 
-	fromBufio(reader).Interpret()
+	return fromBufio(reader).Interpret()
 }
 
-func (text *BufioInterpreter) Interpret() {
+func (text *BufioInterpreter) Interpret() (Value, error) {
 	reader := bufio.Reader(*text)
 
 	scanner := Scanner(&reader)
 	tokens, err := scanner.ScanTokens()
 
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		return nil, err
 	}
 
 	if PrintTokens {
@@ -80,8 +113,7 @@ func (text *BufioInterpreter) Interpret() {
 	function, err := Compile(tokens)
 
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(2)
+		return nil, err
 	}
 
 	if PrintBytecode {
@@ -93,9 +125,8 @@ func (text *BufioInterpreter) Interpret() {
 
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
-		os.Exit(3)
+		return nil, err
 	}
 
-	// todo: move error handling a level up to make repl resilient
-	fmt.Println(val)
+	return val, nil
 }
