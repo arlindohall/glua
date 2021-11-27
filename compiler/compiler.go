@@ -64,7 +64,9 @@ func Compile(text []scanner.Token, mode ReturnMode) (Function, error) {
 
 func (comp *compiler) compile() {
 	for comp.current().Type != scanner.TokenEof {
-		comp.declaration()
+		decl := comp.declaration()
+		fmt.Println(decl)
+		decl.EmitDeclaration(comp)
 	}
 }
 
@@ -79,160 +81,147 @@ func (comp *compiler) current() scanner.Token {
 	return comp.text[comp.curr]
 }
 
-// func (comp *compiler) peek() scanner.Token {
-// 	if comp.curr >= len(comp.text)-1 {
-// 		return scanner.Token{
-// 			"",
-// 			scanner.TokenEof,
-// 		}
-// 	}
-
-// 	return comp.text[comp.curr]
-// }
-
-func (comp *compiler) declaration() {
-	comp.statement()
+func (comp *compiler) declaration() Declaration {
+	state := StatementDeclaration{comp.statement()}
 
 	// Lua allows semicolons but they are not required
 	if comp.current().Type == scanner.TokenSemicolon {
 		comp.consume(scanner.TokenSemicolon)
 	}
+
+	return state
 }
 
-func (comp *compiler) statement() {
+func (comp *compiler) statement() Statement {
 	switch comp.current().Type {
 	case scanner.TokenAssert:
 		comp.advance()
-		comp.expression()
-		comp.emitByte(OpAssert)
+		return AssertStatement{
+			value: comp.expression(),
+		}
 	default:
-		comp.expression()
-		comp.emitByte(OpPop)
+		return ExpressionStatement{comp.expression()}
 	}
 }
 
-func (comp *compiler) expression() {
-	comp.logicOr()
+func (comp *compiler) expression() Expression {
+	return comp.logicOr()
 }
 
-func (comp *compiler) logicOr() {
-	comp.logicAnd()
+func (comp *compiler) logicOr() LogicOr {
+	lor := LogicOr{comp.logicAnd(), nil}
 
 	for {
 		if comp.current().Type == scanner.TokenOr {
 			comp.advance()
-			comp.logicAnd()
-			panic("todo logic or")
+			lor.or = append(lor.or, comp.logicAnd())
 		} else {
-			return
+			return lor
 		}
 	}
 }
 
-func (comp *compiler) logicAnd() {
-	comp.comparison()
+func (comp *compiler) logicAnd() LogicAnd {
+	land := LogicAnd{comp.comparison(), nil}
 
 	for {
 		if comp.current().Type == scanner.TokenAnd {
 			comp.advance()
-			comp.comparison()
-			panic("todo logic and")
+			land.and = append(land.and, comp.comparison())
 		} else {
-			return
+			return land
 		}
 	}
 }
 
-func (comp *compiler) comparison() {
-	comp.term()
+func (comp *compiler) comparison() Comparison {
+	compare := Comparison{comp.term(), nil}
 
 	for {
-		switch comp.current().Type {
+		token := comp.current().Type
+		switch token {
 		case scanner.TokenLess, scanner.TokenGreater, scanner.TokenLessEqual, scanner.TokenGreaterEqual, scanner.TokenTildeEqual, scanner.TokenEqualEqual:
 			comp.advance()
-			comp.term()
-			panic("todo logic compare")
+			compItem := ComparisonItem{
+				term:      comp.term(),
+				compareOp: token,
+			}
+			compare.items = append(compare.items, compItem)
 		default:
-			return
+			return compare
 		}
 	}
 }
 
-func (comp *compiler) term() {
-	comp.factor()
+func (comp *compiler) term() Term {
+	term := Term{comp.factor(), nil}
 
 	for {
-		switch comp.current().Type {
-		case scanner.TokenPlus:
+		token := comp.current().Type
+		switch token {
+		case scanner.TokenMinus, scanner.TokenPlus:
 			comp.advance()
-			comp.factor()
-			comp.emitByte(OpAdd)
-		case scanner.TokenMinus:
-			comp.advance()
-			comp.factor()
-			comp.emitByte(OpSubtract)
+			termItem := TermItem{
+				factor: comp.factor(),
+				termOp: token,
+			}
+			term.items = append(term.items, termItem)
 		default:
-			return
+			return term
 		}
 	}
 }
 
-func (comp *compiler) factor() {
-	comp.unary()
+func (comp *compiler) factor() Factor {
+	factor := Factor{comp.unary(), nil}
 
 	for {
-		switch comp.current().Type {
-		case scanner.TokenStar:
+		token := comp.current().Type
+		switch token {
+		case scanner.TokenStar, scanner.TokenSlash:
 			comp.advance()
-			comp.unary()
-			comp.emitByte(OpMult)
-		case scanner.TokenSlash:
-			comp.advance()
-			comp.unary()
-			comp.emitByte(OpDivide)
+			factorItem := FactorItem{
+				unary:    comp.unary(),
+				factorOp: token,
+			}
+			factor.items = append(factor.items, factorItem)
 		default:
-			return
+			return factor
 		}
 	}
 
 }
 
-func (comp *compiler) unary() {
+func (comp *compiler) unary() Unary {
 	switch comp.current().Type {
 	case scanner.TokenMinus:
 		comp.advance()
-		comp.unary()
-		comp.emitByte(OpNegate)
+		return NegateUnary{comp.unary()}
 	case scanner.TokenBang:
 		comp.advance()
-		comp.unary()
-		comp.emitByte(OpNot)
+		return NotUnary{comp.unary()}
 	default:
-		comp.exponent()
-		return
+		return BaseUnary{comp.exponent()}
 	}
 }
 
-func (comp *compiler) exponent() {
-	comp.primary()
-
+func (comp *compiler) exponent() Exponent {
 	if comp.current().Type == scanner.TokenCaret {
 		comp.advance()
-		comp.primary()
-		panic("todo exponentiation")
+		return Exponent{comp.primary(), nil}
+	} else {
+		return Exponent{comp.primary(), nil}
 	}
 }
 
-func (comp *compiler) primary() {
+func (comp *compiler) primary() Primary {
 	switch comp.current().Type {
 	case scanner.TokenTrue:
-		b := comp.makeConstant(&value.Boolean{Val: true})
-		comp.emitBytes(OpConstant, b)
 		comp.advance()
+		return BooleanPrimary(true)
 	case scanner.TokenFalse:
-		b := comp.makeConstant(&value.Boolean{Val: false})
-		comp.emitBytes(OpConstant, b)
 		comp.advance()
+		return BooleanPrimary(false)
 	case scanner.TokenNumber:
 		flt, err := strconv.ParseFloat(
 			comp.current().Text,
@@ -243,12 +232,12 @@ func (comp *compiler) primary() {
 			comp.error(fmt.Sprint("Cannot parse number: ", comp.current().Text))
 		}
 
-		b := comp.makeConstant(&value.Number{Val: flt})
-		comp.emitBytes(OpConstant, b)
 		comp.advance()
+		return NumberPrimary(flt)
 	default:
 		comp.error(fmt.Sprint("Unexpected token:", comp.current()))
 		comp.advance()
+		return nil
 	}
 }
 

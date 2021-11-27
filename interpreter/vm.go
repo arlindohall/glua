@@ -61,17 +61,17 @@ func (vm *VM) run() value.Value {
 			vm.arithmetic("multiply", func(a, b float64) float64 { return a * b })
 		case compiler.OpNegate:
 			val := vm.pop().AsNumber()
-			vm.push(value.Number{-val})
+			vm.push(value.Number{Val: -val})
 		case compiler.OpNot:
 			val := vm.pop().AsBoolean()
-			vm.push(value.Boolean{!val})
+			vm.push(value.Boolean{Val: !val})
 		case compiler.OpAdd:
 			val2 := vm.pop()
 			val1 := vm.pop()
 
 			switch {
 			case val1.IsNumber() && val2.IsNumber():
-				vm.push(value.Number{val1.AsNumber() + val2.AsNumber()})
+				vm.push(value.Number{Val: val1.AsNumber() + val2.AsNumber()})
 			default:
 				vm.error("Cannot add two non-numbers")
 			}
@@ -106,7 +106,7 @@ func (vm *VM) arithmetic(name string, op func(float64, float64) float64) {
 
 	switch {
 	case val1.IsNumber() && val2.IsNumber():
-		vm.push(value.Number{op(val1.AsNumber(), val2.AsNumber())})
+		vm.push(value.Number{Val: op(val1.AsNumber(), val2.AsNumber())})
 	default:
 		vm.error(fmt.Sprintf("Cannot %s two non-numbers", name))
 	}
