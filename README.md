@@ -33,11 +33,32 @@ Statement := AssertStatement
 
 AssertStatement := 'assert' Expression
 
-Expression := Term
+Expression := LogicOr
 
-Term := ( '-' )? Factor ( ('+' | '-') Factor )
+# Logic and is higher precedence than or; or is the lowest
+# precedence operator
+#
+# x or y and z will evaluate as x or (y and z)
+LogicOr := LogicAnd ( 'or' LogicAnd ) *
 
-Factor := Primary ( ('+' | '-') Primary )
+LogicAnd := Comparison ( 'and' Comparison ) *
+
+# Skip concatenation operator for now
+Comparison := Term ( ('<' | '>' | '<=' | '>=' | '~=' | '==' ) Term ) *
+
+Term := Factor ( ('+' | '-') Factor ) *
+
+Factor := Unary ( ('*' | '/') Unary ) *
+
+# The way I'd represent is...
+# Unary := ('-' | '!') * Exponent
+# but that would require an explicit stack to implement as written.
+#
+# Instead use a recursive definition
+Unary := ('-' | '!') Unary | Exponent
+
+
+Exponent := Primary ( '^' Primary )
 
 Primary := Number | String | Word
 

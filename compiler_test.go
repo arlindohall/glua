@@ -14,26 +14,32 @@ func runWithoutError(t *testing.T, text string) {
 	}
 }
 
-func TestCompileSingleExpression(t *testing.T) {
+func TestSingleExpression(t *testing.T) {
 	text := "1 + 2 + 3 + 4"
 
 	runWithoutError(t, text)
 }
 
-func TestCompileArithmeticOperations(t *testing.T) {
+func TestArithmeticOperations(t *testing.T) {
 	text := "-1 * 2 + -3 + 4"
 
 	runWithoutError(t, text)
 }
 
-func TestCompileLotsOfNegatives(t *testing.T) {
+func TestLotsOfNegatives(t *testing.T) {
 	text := "-1 * -1 * -1 * -1 * -1 + 1"
 
 	runWithoutError(t, text)
 }
 
-func TestCompileAssertStatement(t *testing.T) {
+func TestAssertStatement(t *testing.T) {
 	text := "assert true"
+
+	runWithoutError(t, text)
+}
+
+func TestAssertNotFalse(t *testing.T) {
+	text := "assert !false"
 
 	runWithoutError(t, text)
 }

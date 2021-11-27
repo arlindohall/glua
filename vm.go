@@ -62,6 +62,9 @@ func (vm *VM) run() Value {
 		case OpNegate:
 			val := vm.pop().asNumber()
 			vm.push(number{-val})
+		case OpNot:
+			val := vm.pop().asBoolean()
+			vm.push(boolean{!val})
 		case OpAdd:
 			val2 := vm.pop()
 			val1 := vm.pop()
@@ -74,6 +77,7 @@ func (vm *VM) run() Value {
 			}
 		default:
 			vm.error(fmt.Sprint("Do not know how to perform: ", op))
+			return nil
 		}
 	}
 }

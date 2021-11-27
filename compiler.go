@@ -13,6 +13,7 @@ const (
 	OpNil
 	OpMult
 	OpNegate
+	OpNot
 	OpPop
 	OpReturn
 	OpSubtract
@@ -100,61 +101,125 @@ func (comp *compiler) statement() {
 }
 
 func (comp *compiler) expression() {
+	comp.logicOr()
+}
+
+func (comp *compiler) logicOr() {
+	comp.logicAnd()
+
+	for {
+		if comp.current()._type == TokenOr {
+			comp.advance()
+			comp.logicAnd()
+			panic("todo logic or")
+		} else {
+			return
+		}
+	}
+}
+
+func (comp *compiler) logicAnd() {
+	comp.comparison()
+
+	for {
+		if comp.current()._type == TokenAnd {
+			comp.advance()
+			comp.comparison()
+			panic("todo logic and")
+		} else {
+			return
+		}
+	}
+}
+
+func (comp *compiler) comparison() {
 	comp.term()
+
+	for {
+		switch comp.current()._type {
+		case TokenLess, TokenGreater, TokenLessEqual, TokenGreaterEqual, TokenTildeEqual, TokenEqualEqual:
+			comp.advance()
+			comp.term()
+			panic("todo logic compare")
+		default:
+			return
+		}
+	}
 }
 
 func (comp *compiler) term() {
 	comp.factor()
 
-	switch comp.current()._type {
-	case TokenPlus:
-		comp.advance()
-		comp.term()
-		comp.emitByte(OpAdd)
-	case TokenMinus:
-		comp.advance()
-		comp.term()
-		comp.emitByte(OpSubtract)
-	case TokenEof, TokenSemicolon:
-		// todo: infinite loop somewhere in here when unrecognized token type
-		// maybe instead just require semicolon, maybe this should be an error?
-		// Should this collapse into the branch below?
-		return
-	default:
-		return
+	for {
+		switch comp.current()._type {
+		case TokenPlus:
+			comp.advance()
+			comp.factor()
+			comp.emitByte(OpAdd)
+		case TokenMinus:
+			comp.advance()
+			comp.factor()
+			comp.emitByte(OpSubtract)
+		default:
+			return
+		}
+	}
+}
+
+func (comp *compiler) factor() {
+	comp.unary()
+
+	for {
+		switch comp.current()._type {
+		case TokenStar:
+			comp.advance()
+			comp.unary()
+			comp.emitByte(OpMult)
+		case TokenSlash:
+			comp.advance()
+			comp.unary()
+			comp.emitByte(OpDivide)
+		default:
+			return
+		}
 	}
 
 }
 
-func (comp *compiler) factor() {
-
-	if comp.current()._type == TokenMinus {
-		comp.advance()
-		comp.factor()
-		comp.emitByte(OpNegate)
-	} else {
-		comp.primary()
-	}
-
+func (comp *compiler) unary() {
 	switch comp.current()._type {
-	case TokenStar:
+	case TokenMinus:
 		comp.advance()
-		comp.factor()
-		comp.emitByte(OpMult)
-	case TokenSlash:
+		comp.unary()
+		comp.emitByte(OpNegate)
+	case TokenBang:
 		comp.advance()
-		comp.factor()
-		comp.emitByte(OpDivide)
+		comp.unary()
+		comp.emitByte(OpNot)
 	default:
+		comp.exponent()
 		return
 	}
+}
 
+func (comp *compiler) exponent() {
+	comp.primary()
+
+	if comp.current()._type == TokenCaret {
+		comp.advance()
+		comp.primary()
+		panic("todo exponentiation")
+	}
 }
 
 func (comp *compiler) primary() {
 	switch comp.current()._type {
 	case TokenTrue:
 		b := comp.makeConstant(&boolean{true})
+		comp.emitBytes(OpConstant, b)
+		comp.advance()
+	case TokenFalse:
+		b := comp.makeConstant(&boolean{false})
 		comp.emitBytes(OpConstant, b)
 		comp.advance()
 	case TokenNumber:
@@ -171,8 +236,8 @@ func (comp *compiler) primary() {
 		comp.emitBytes(OpConstant, b)
 		comp.advance()
 	default:
-		comp.advance()
 		comp.error(fmt.Sprint("Unexpected token:", comp.current()))
+		comp.advance()
 	}
 }
 

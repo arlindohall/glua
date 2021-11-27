@@ -19,6 +19,8 @@ func (tt TokenType) String() string {
 		return "TokenPlus"
 	case TokenMinus:
 		return "TokenMinus"
+	case TokenBang:
+		return "TokenBang"
 	case TokenSemicolon:
 		return "TokenSemicolon"
 	case TokenSlash:
@@ -27,6 +29,8 @@ func (tt TokenType) String() string {
 		return "TokenStar"
 	case TokenTrue:
 		return "TokenTrue"
+	case TokenFalse:
+		return "TokenFalse"
 	default:
 		panic("Unrecognized TokenType")
 	}
@@ -54,6 +58,8 @@ func (op op) String() string {
 		return "OpSubtract"
 	case OpNegate:
 		return "OpNegate"
+	case OpNot:
+		return "OpNot"
 	case OpMult:
 		return "OpMult"
 	case OpDivide:
@@ -66,7 +72,7 @@ func (op op) String() string {
 func debugTrace(vm *VM) {
 	var trace func(int, *VM)
 	switch vm.previous() {
-	case OpAdd, OpSubtract, OpNegate, OpMult, OpDivide, OpNil, OpReturn, OpPop, OpAssert:
+	case OpAdd, OpSubtract, OpNot, OpNegate, OpMult, OpDivide, OpNil, OpReturn, OpPop, OpAssert:
 		trace = traceInstruction
 	case OpConstant:
 		trace = traceConstant
@@ -100,7 +106,7 @@ func debugPrint(function Function) {
 		switch bytecode[i] {
 		case OpConstant:
 			print = printConstant
-		case OpAdd, OpSubtract, OpNegate, OpMult, OpDivide, OpNil, OpReturn, OpPop, OpAssert:
+		case OpAdd, OpSubtract, OpNot, OpNegate, OpMult, OpDivide, OpNil, OpReturn, OpPop, OpAssert:
 			print = printInstruction
 		default:
 			panic(fmt.Sprint("Unknown op for debug print: ", bytecode[i]))

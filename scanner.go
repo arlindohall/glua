@@ -21,14 +21,25 @@ type scanner struct {
 
 const (
 	TokenError = iota
+	TokenAnd
 	TokenAssert
-	TokenNumber
+	TokenBang
+	TokenCaret
 	TokenEof
+	TokenEqualEqual
+	TokenFalse
+	TokenGreater
+	TokenGreaterEqual
+	TokenLess
+	TokenLessEqual
 	TokenMinus
+	TokenNumber
+	TokenOr
 	TokenPlus
+	TokenSemicolon
 	TokenSlash
 	TokenStar
-	TokenSemicolon
+	TokenTildeEqual
 	TokenTrue
 )
 
@@ -140,6 +151,9 @@ func (scanner *scanner) scanToken() (Token, error) {
 	case r == ';':
 		scanner.advance()
 		return Token{";", TokenSemicolon}, nil
+	case r == '!':
+		scanner.advance()
+		return Token{"!", TokenBang}, nil
 	default:
 		scanner.advance()
 		scanner.error(fmt.Sprint("Unexpected character '", string([]rune{r}), "'"))
@@ -185,6 +199,8 @@ func (scanner *scanner) scanWord() (Token, error) {
 		return Token{source, TokenAssert}, nil
 	case "true":
 		return Token{source, TokenTrue}, nil
+	case "false":
+		return Token{source, TokenFalse}, nil
 	default:
 		return Token{source, TokenError}, nil
 	}
