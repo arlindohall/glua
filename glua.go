@@ -80,6 +80,7 @@ func runFile(fileName string) {
 type ReturnMode int
 
 // todo: Interpret should return a value for printing
+// todo: Don't provide mode
 type Glua interface {
 	Interpret(mode ReturnMode) (Value, error)
 }

@@ -7,6 +7,7 @@ import (
 
 const (
 	OpAdd = iota
+	OpAssert
 	OpConstant
 	OpDivide
 	OpNil
@@ -87,8 +88,15 @@ func (comp *compiler) declaration() {
 }
 
 func (comp *compiler) statement() {
-	comp.expression()
-	comp.emitByte(OpPop)
+	switch comp.current()._type {
+	case TokenAssert:
+		comp.advance()
+		comp.expression()
+		comp.emitByte(OpAssert)
+	default:
+		comp.expression()
+		comp.emitByte(OpPop)
+	}
 }
 
 func (comp *compiler) expression() {
@@ -145,6 +153,10 @@ func (comp *compiler) factor() {
 
 func (comp *compiler) primary() {
 	switch comp.current()._type {
+	case TokenTrue:
+		b := comp.makeConstant(&boolean{true})
+		comp.emitBytes(OpConstant, b)
+		comp.advance()
 	case TokenNumber:
 		flt, err := strconv.ParseFloat(
 			comp.current().text,
@@ -159,6 +171,7 @@ func (comp *compiler) primary() {
 		comp.emitBytes(OpConstant, b)
 		comp.advance()
 	default:
+		comp.advance()
 		comp.error(fmt.Sprint("Unexpected token:", comp.current()))
 	}
 }

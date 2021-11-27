@@ -28,8 +28,10 @@ Program := Declaration +
 # use them to deliniate the end of an expression
 Declaration := Statement ( ';' )?
 
-Statement := ForStatement
+Statement := AssertStatement
     | Expression
+
+AssertStatement := 'assert' Expression
 
 Expression := Term
 

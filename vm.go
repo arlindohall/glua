@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 )
 
 type VM struct {
@@ -36,6 +37,12 @@ func (vm *VM) run() Value {
 		}
 
 		switch op {
+		case OpAssert:
+			val := vm.pop()
+			if !val.asBoolean() {
+				// exit or break to top level?
+				os.Exit(5)
+			}
 		case OpReturn:
 			return vm.pop()
 		case OpPop:

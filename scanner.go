@@ -21,6 +21,7 @@ type scanner struct {
 
 const (
 	TokenError = iota
+	TokenAssert
 	TokenNumber
 	TokenEof
 	TokenMinus
@@ -28,6 +29,7 @@ const (
 	TokenSlash
 	TokenStar
 	TokenSemicolon
+	TokenTrue
 )
 
 func Scanner(reader *bufio.Reader) *scanner {
@@ -175,10 +177,18 @@ func (scanner *scanner) scanWord() (Token, error) {
 	for c, err := scanner.scanRune(); err == nil && isAlpha(c) || isNumber(c); c, err = scanner.scanRune() {
 		word = append(word, c)
 	}
-	return Token{
-		string(word),
-		TokenError,
-	}, nil
+
+	source := string(word)
+
+	switch source {
+	case "assert":
+		return Token{source, TokenAssert}, nil
+	case "true":
+		return Token{source, TokenTrue}, nil
+	default:
+		return Token{source, TokenError}, nil
+	}
+
 }
 
 func isNumber(r rune) bool {
