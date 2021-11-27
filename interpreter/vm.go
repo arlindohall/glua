@@ -1,21 +1,21 @@
-package main
+package interpreter
 
 import (
+	"arlindohall/glua/compiler"
+	"arlindohall/glua/value"
 	"fmt"
 	"os"
 )
 
 type VM struct {
 	ip        int
-	chunk     chunk
-	stack     []Value
+	chunk     compiler.Chunk
+	stack     []value.Value
 	stackSize int
 	err       error
 }
 
-type op byte
-
-func (vm *VM) Interpret(chunk chunk) (Value, error) {
+func (vm *VM) Interpret(chunk compiler.Chunk) (value.Value, error) {
 	vm.chunk = chunk
 
 	// todo: call function
@@ -28,50 +28,50 @@ func (vm *VM) Interpret(chunk chunk) (Value, error) {
 	return val, vm.err
 }
 
-func (vm *VM) run() Value {
+func (vm *VM) run() value.Value {
 	for {
 		op := vm.readByte()
 
 		if TraceExecution {
-			debugTrace(vm)
+			DebugTrace(vm)
 		}
 
 		switch op {
-		case OpAssert:
+		case compiler.OpAssert:
 			val := vm.pop()
-			if !val.asBoolean() {
+			if !val.AsBoolean() {
 				// exit or break to top level?
 				os.Exit(5)
 			}
-		case OpReturn:
+		case compiler.OpReturn:
 			return vm.pop()
-		case OpPop:
+		case compiler.OpPop:
 			vm.pop()
-		case OpConstant:
+		case compiler.OpConstant:
 			c := byte(vm.readByte())
-			val := vm.chunk.constants[c]
+			val := vm.chunk.Constants[c]
 			vm.push(val)
-		case OpNil:
-			vm.push(nilVal{})
-		case OpSubtract:
+		case compiler.OpNil:
+			vm.push(value.Nil{})
+		case compiler.OpSubtract:
 			vm.arithmetic("subtract", func(a, b float64) float64 { return a - b })
-		case OpDivide:
+		case compiler.OpDivide:
 			vm.arithmetic("divide", func(a, b float64) float64 { return a / b })
-		case OpMult:
+		case compiler.OpMult:
 			vm.arithmetic("multiply", func(a, b float64) float64 { return a * b })
-		case OpNegate:
-			val := vm.pop().asNumber()
-			vm.push(number{-val})
-		case OpNot:
-			val := vm.pop().asBoolean()
-			vm.push(boolean{!val})
-		case OpAdd:
+		case compiler.OpNegate:
+			val := vm.pop().AsNumber()
+			vm.push(value.Number{-val})
+		case compiler.OpNot:
+			val := vm.pop().AsBoolean()
+			vm.push(value.Boolean{!val})
+		case compiler.OpAdd:
 			val2 := vm.pop()
 			val1 := vm.pop()
 
 			switch {
-			case val1.isNumber() && val2.isNumber():
-				vm.push(number{val1.asNumber() + val2.asNumber()})
+			case val1.IsNumber() && val2.IsNumber():
+				vm.push(value.Number{val1.AsNumber() + val2.AsNumber()})
 			default:
 				vm.error("Cannot add two non-numbers")
 			}
@@ -82,7 +82,7 @@ func (vm *VM) run() Value {
 	}
 }
 
-func (vm *VM) pop() Value {
+func (vm *VM) pop() value.Value {
 	vm.stackSize -= 1
 	val := vm.stack[vm.stackSize]
 	vm.stack[vm.stackSize] = nil
@@ -90,7 +90,7 @@ func (vm *VM) pop() Value {
 	return val
 }
 
-func (vm *VM) push(val Value) {
+func (vm *VM) push(val value.Value) {
 	if vm.stackSize >= len(vm.stack) {
 		vm.stack = append(vm.stack, val)
 	} else {
@@ -105,14 +105,14 @@ func (vm *VM) arithmetic(name string, op func(float64, float64) float64) {
 	val1 := vm.pop()
 
 	switch {
-	case val1.isNumber() && val2.isNumber():
-		vm.push(number{op(val1.asNumber(), val2.asNumber())})
+	case val1.IsNumber() && val2.IsNumber():
+		vm.push(value.Number{op(val1.AsNumber(), val2.AsNumber())})
 	default:
 		vm.error(fmt.Sprintf("Cannot %s two non-numbers", name))
 	}
 }
 
-func (vm *VM) readByte() op {
+func (vm *VM) readByte() compiler.Op {
 	c := vm.current()
 	vm.advance()
 	return c
@@ -122,12 +122,12 @@ func (vm *VM) advance() {
 	vm.ip += 1
 }
 
-func (vm *VM) previous() op {
-	return vm.chunk.bytecode[vm.ip-1]
+func (vm *VM) previous() compiler.Op {
+	return vm.chunk.Bytecode[vm.ip-1]
 }
 
-func (vm *VM) current() op {
-	return vm.chunk.bytecode[vm.ip]
+func (vm *VM) current() compiler.Op {
+	return vm.chunk.Bytecode[vm.ip]
 }
 
 // todo: error handling

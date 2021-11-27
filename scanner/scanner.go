@@ -1,4 +1,4 @@
-package main
+package scanner
 
 import (
 	"bufio"
@@ -8,8 +8,8 @@ import (
 )
 
 type Token struct {
-	text  string
-	_type TokenType
+	Text string
+	Type TokenType
 }
 
 type TokenType int
@@ -181,8 +181,8 @@ func (scanner *scanner) scanNumber() (Token, error) {
 	}
 
 	return Token{
-		text:  string(runes),
-		_type: TokenNumber,
+		Text: string(runes),
+		Type: TokenNumber,
 	}, nil
 }
 

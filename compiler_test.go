@@ -1,12 +1,14 @@
 package main
 
 import (
+	"arlindohall/glua/compiler"
+	"arlindohall/glua/interpreter"
 	"fmt"
 	"testing"
 )
 
 func runWithoutError(t *testing.T, text string) {
-	_, err := fromString(text).Interpret(RunFileMode)
+	_, err := interpreter.FromString(text).Interpret(compiler.RunFileMode)
 
 	if err != nil {
 		fmt.Println("Error running test: ", err)

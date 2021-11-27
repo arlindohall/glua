@@ -1,6 +1,8 @@
-package main
+package compiler
 
 import (
+	"arlindohall/glua/scanner"
+	"arlindohall/glua/value"
 	"fmt"
 	"strconv"
 )
@@ -19,29 +21,38 @@ const (
 	OpSubtract
 )
 
+const (
+	RunFileMode = iota
+	ReplMode
+)
+
+type Op byte
+
+type ReturnMode int
+
 type compiler struct {
-	text  []Token
+	text  []scanner.Token
 	curr  int
-	chunk chunk
+	chunk Chunk
 	err   error
 	mode  ReturnMode
 }
 
-type chunk struct {
-	bytecode  []op
-	constants []Value
+type Chunk struct {
+	Bytecode  []Op
+	Constants []value.Value
 }
 
 type Function struct {
-	chunk chunk
-	name  string
+	Chunk Chunk
+	Name  string
 }
 
-func Compile(text []Token, mode ReturnMode) (Function, error) {
+func Compile(text []scanner.Token, mode ReturnMode) (Function, error) {
 	compiler := compiler{
 		text,
 		0,
-		chunk{},
+		Chunk{},
 		nil,
 		mode,
 	}
@@ -52,27 +63,27 @@ func Compile(text []Token, mode ReturnMode) (Function, error) {
 }
 
 func (comp *compiler) compile() {
-	for comp.current()._type != TokenEof {
+	for comp.current().Type != scanner.TokenEof {
 		comp.declaration()
 	}
 }
 
-func (comp *compiler) current() Token {
+func (comp *compiler) current() scanner.Token {
 	if comp.curr >= len(comp.text) {
-		return Token{
-			"",
-			TokenEof,
+		return scanner.Token{
+			Type: scanner.TokenEof,
+			Text: "",
 		}
 	}
 
 	return comp.text[comp.curr]
 }
 
-// func (comp *compiler) peek() Token {
+// func (comp *compiler) peek() scanner.Token {
 // 	if comp.curr >= len(comp.text)-1 {
-// 		return Token{
+// 		return scanner.Token{
 // 			"",
-// 			TokenEof,
+// 			scanner.TokenEof,
 // 		}
 // 	}
 
@@ -83,14 +94,14 @@ func (comp *compiler) declaration() {
 	comp.statement()
 
 	// Lua allows semicolons but they are not required
-	if comp.current()._type == TokenSemicolon {
-		comp.consume(TokenSemicolon)
+	if comp.current().Type == scanner.TokenSemicolon {
+		comp.consume(scanner.TokenSemicolon)
 	}
 }
 
 func (comp *compiler) statement() {
-	switch comp.current()._type {
-	case TokenAssert:
+	switch comp.current().Type {
+	case scanner.TokenAssert:
 		comp.advance()
 		comp.expression()
 		comp.emitByte(OpAssert)
@@ -108,7 +119,7 @@ func (comp *compiler) logicOr() {
 	comp.logicAnd()
 
 	for {
-		if comp.current()._type == TokenOr {
+		if comp.current().Type == scanner.TokenOr {
 			comp.advance()
 			comp.logicAnd()
 			panic("todo logic or")
@@ -122,7 +133,7 @@ func (comp *compiler) logicAnd() {
 	comp.comparison()
 
 	for {
-		if comp.current()._type == TokenAnd {
+		if comp.current().Type == scanner.TokenAnd {
 			comp.advance()
 			comp.comparison()
 			panic("todo logic and")
@@ -136,8 +147,8 @@ func (comp *compiler) comparison() {
 	comp.term()
 
 	for {
-		switch comp.current()._type {
-		case TokenLess, TokenGreater, TokenLessEqual, TokenGreaterEqual, TokenTildeEqual, TokenEqualEqual:
+		switch comp.current().Type {
+		case scanner.TokenLess, scanner.TokenGreater, scanner.TokenLessEqual, scanner.TokenGreaterEqual, scanner.TokenTildeEqual, scanner.TokenEqualEqual:
 			comp.advance()
 			comp.term()
 			panic("todo logic compare")
@@ -151,12 +162,12 @@ func (comp *compiler) term() {
 	comp.factor()
 
 	for {
-		switch comp.current()._type {
-		case TokenPlus:
+		switch comp.current().Type {
+		case scanner.TokenPlus:
 			comp.advance()
 			comp.factor()
 			comp.emitByte(OpAdd)
-		case TokenMinus:
+		case scanner.TokenMinus:
 			comp.advance()
 			comp.factor()
 			comp.emitByte(OpSubtract)
@@ -170,12 +181,12 @@ func (comp *compiler) factor() {
 	comp.unary()
 
 	for {
-		switch comp.current()._type {
-		case TokenStar:
+		switch comp.current().Type {
+		case scanner.TokenStar:
 			comp.advance()
 			comp.unary()
 			comp.emitByte(OpMult)
-		case TokenSlash:
+		case scanner.TokenSlash:
 			comp.advance()
 			comp.unary()
 			comp.emitByte(OpDivide)
@@ -187,12 +198,12 @@ func (comp *compiler) factor() {
 }
 
 func (comp *compiler) unary() {
-	switch comp.current()._type {
-	case TokenMinus:
+	switch comp.current().Type {
+	case scanner.TokenMinus:
 		comp.advance()
 		comp.unary()
 		comp.emitByte(OpNegate)
-	case TokenBang:
+	case scanner.TokenBang:
 		comp.advance()
 		comp.unary()
 		comp.emitByte(OpNot)
@@ -205,7 +216,7 @@ func (comp *compiler) unary() {
 func (comp *compiler) exponent() {
 	comp.primary()
 
-	if comp.current()._type == TokenCaret {
+	if comp.current().Type == scanner.TokenCaret {
 		comp.advance()
 		comp.primary()
 		panic("todo exponentiation")
@@ -213,26 +224,26 @@ func (comp *compiler) exponent() {
 }
 
 func (comp *compiler) primary() {
-	switch comp.current()._type {
-	case TokenTrue:
-		b := comp.makeConstant(&boolean{true})
+	switch comp.current().Type {
+	case scanner.TokenTrue:
+		b := comp.makeConstant(&value.Boolean{Val: true})
 		comp.emitBytes(OpConstant, b)
 		comp.advance()
-	case TokenFalse:
-		b := comp.makeConstant(&boolean{false})
+	case scanner.TokenFalse:
+		b := comp.makeConstant(&value.Boolean{Val: false})
 		comp.emitBytes(OpConstant, b)
 		comp.advance()
-	case TokenNumber:
+	case scanner.TokenNumber:
 		flt, err := strconv.ParseFloat(
-			comp.current().text,
+			comp.current().Text,
 			64,
 		)
 
 		if err != nil {
-			comp.error(fmt.Sprint("Cannot parse number: ", comp.current().text))
+			comp.error(fmt.Sprint("Cannot parse number: ", comp.current().Text))
 		}
 
-		b := comp.makeConstant(&number{flt})
+		b := comp.makeConstant(&value.Number{Val: flt})
 		comp.emitBytes(OpConstant, b)
 		comp.advance()
 	default:
@@ -245,36 +256,36 @@ func (comp *compiler) advance() {
 	comp.curr += 1
 }
 
-func (comp *compiler) consume(tt TokenType) {
-	if comp.current()._type != tt {
-		comp.error(fmt.Sprint("Expected type ", tt, ", found ", comp.current()._type))
+func (comp *compiler) consume(tt scanner.TokenType) {
+	if comp.current().Type != tt {
+		comp.error(fmt.Sprint("Expected type ", tt, ", found ", comp.current().Type))
 	}
 
 	comp.advance()
 }
 
-func (comp *compiler) makeConstant(value Value) byte {
-	index := len(comp.chunk.constants)
+func (comp *compiler) makeConstant(value value.Value) byte {
+	index := len(comp.chunk.Constants)
 
 	// todo: error if too many constants
-	comp.chunk.constants = append(comp.chunk.constants, value)
+	comp.chunk.Constants = append(comp.chunk.Constants, value)
 
 	return byte(index)
 }
 
 func (comp *compiler) emitBytes(b1, b2 byte) {
-	comp.chunk.bytecode = append(comp.chunk.bytecode, op(b1))
-	comp.chunk.bytecode = append(comp.chunk.bytecode, op(b2))
+	comp.chunk.Bytecode = append(comp.chunk.Bytecode, Op(b1))
+	comp.chunk.Bytecode = append(comp.chunk.Bytecode, Op(b2))
 }
 
 func (comp *compiler) emitByte(b byte) {
-	comp.chunk.bytecode = append(comp.chunk.bytecode, op(b))
+	comp.chunk.Bytecode = append(comp.chunk.Bytecode, Op(b))
 }
 
 func (comp *compiler) emitReturn() {
-	last := len(comp.chunk.bytecode) - 1
-	if comp.mode == ReplMode && comp.chunk.bytecode[last] == OpPop {
-		comp.chunk.bytecode[last] = OpReturn
+	last := len(comp.chunk.Bytecode) - 1
+	if comp.mode == ReplMode && comp.chunk.Bytecode[last] == OpPop {
+		comp.chunk.Bytecode[last] = OpReturn
 	} else {
 		comp.emitBytes(OpNil, OpReturn)
 	}
