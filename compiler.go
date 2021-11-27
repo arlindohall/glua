@@ -22,6 +22,7 @@ type compiler struct {
 	curr  int
 	chunk chunk
 	err   error
+	mode  ReturnMode
 }
 
 type chunk struct {
@@ -34,12 +35,13 @@ type Function struct {
 	name  string
 }
 
-func Compile(text []Token) (Function, error) {
+func Compile(text []Token, mode ReturnMode) (Function, error) {
 	compiler := compiler{
 		text,
 		0,
 		chunk{},
 		nil,
+		mode,
 	}
 
 	compiler.compile()
@@ -192,7 +194,12 @@ func (comp *compiler) emitByte(b byte) {
 }
 
 func (comp *compiler) emitReturn() {
-	comp.emitBytes(OpNil, OpReturn)
+	last := len(comp.chunk.bytecode) - 1
+	if comp.mode == ReplMode && comp.chunk.bytecode[last] == OpPop {
+		comp.chunk.bytecode[last] = OpReturn
+	} else {
+		comp.emitBytes(OpNil, OpReturn)
+	}
 }
 
 func (comp *compiler) end() (Function, error) {

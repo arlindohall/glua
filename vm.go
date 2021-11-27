@@ -14,8 +14,8 @@ type VM struct {
 
 type op byte
 
-func Interpret(chunk chunk) (Value, error) {
-	vm := VM{0, chunk, nil, 0, nil}
+func (vm *VM) Interpret(chunk chunk) (Value, error) {
+	vm.chunk = chunk
 
 	// todo: call function
 	if TraceExecution {
