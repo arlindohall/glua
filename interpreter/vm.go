@@ -66,6 +66,16 @@ func (vm *VM) run() value.Value {
 			} else {
 				vm.push(value.Boolean{Val: false})
 			}
+		case compiler.OpAnd:
+			val2 := vm.pop()
+			val1 := vm.pop()
+
+			vm.push(value.Boolean{Val: val1.AsBoolean() && val2.AsBoolean()})
+		case compiler.OpOr:
+			val2 := vm.pop()
+			val1 := vm.pop()
+
+			vm.push(value.Boolean{Val: val1.AsBoolean() || val2.AsBoolean()})
 		case compiler.OpSubtract:
 			vm.arithmetic("subtract", func(a, b float64) float64 { return a - b })
 		case compiler.OpDivide:

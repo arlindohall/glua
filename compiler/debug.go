@@ -31,8 +31,12 @@ func (op Op) String() string {
 		return "OpMult"
 	case OpDivide:
 		return "OpDivide"
+	case OpAnd:
+		return "OpAnd"
+	case OpOr:
+		return "OpOr"
 	default:
-		panic(fmt.Sprint("Unrecognized: ", byte(op)))
+		panic(fmt.Sprint("Unrecognized Stringer for op: ", byte(op)))
 	}
 }
 
@@ -51,7 +55,7 @@ func DebugPrint(function Function) {
 		switch bytecode[i] {
 		case OpConstant:
 			print = printConstant
-		case OpAdd, OpSubtract, OpNot, OpNegate, OpMult, OpDivide, OpNil, OpReturn, OpPop, OpAssert, OpEquals:
+		case OpAdd, OpSubtract, OpNot, OpNegate, OpMult, OpDivide, OpNil, OpReturn, OpPop, OpAssert, OpEquals, OpAnd, OpOr:
 			print = printInstruction
 		default:
 			panic(fmt.Sprint("Unknown op for debug print: ", bytecode[i]))

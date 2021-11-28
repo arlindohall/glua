@@ -10,6 +10,7 @@ import (
 const (
 	OpAdd = iota
 	OpAssert
+	OpAnd
 	OpConstant
 	OpDivide
 	OpEquals
@@ -17,6 +18,7 @@ const (
 	OpNegate
 	OpNil
 	OpNot
+	OpOr
 	OpPop
 	OpReturn
 	OpSubtract

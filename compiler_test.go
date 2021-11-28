@@ -51,3 +51,9 @@ func TestArithmeticAll(t *testing.T) {
 
 	runWithoutError(t, text)
 }
+
+func TestAndExpression(t *testing.T) {
+	text := "assert 1 and 2 == 2 or 3 == 3 == 3"
+
+	runWithoutError(t, text)
+}

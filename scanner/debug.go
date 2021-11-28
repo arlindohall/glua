@@ -31,6 +31,14 @@ func (tt TokenType) String() string {
 		return "TokenTrue"
 	case TokenFalse:
 		return "TokenFalse"
+	case TokenEqualEqual:
+		return "TokenEqualEqual"
+	case TokenEqual:
+		return "TokenEqual"
+	case TokenAnd:
+		return "TokenAnd"
+	case TokenOr:
+		return "TokenOr"
 	default:
 		panic("Unrecognized TokenType")
 	}

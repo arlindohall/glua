@@ -204,6 +204,7 @@ func (scanner *scanner) scanWord() (Token, error) {
 
 	source := string(word)
 
+	// todo: use a trie to speed up
 	switch source {
 	case "assert":
 		return Token{source, TokenAssert}, nil
@@ -211,6 +212,10 @@ func (scanner *scanner) scanWord() (Token, error) {
 		return Token{source, TokenTrue}, nil
 	case "false":
 		return Token{source, TokenFalse}, nil
+	case "and":
+		return Token{source, TokenAnd}, nil
+	case "or":
+		return Token{source, TokenOr}, nil
 	default:
 		return Token{source, TokenError}, nil
 	}

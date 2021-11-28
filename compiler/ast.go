@@ -72,11 +72,12 @@ type LogicOr struct {
 	or    []LogicAnd
 }
 
+// todo: short circuit or with a jump
 func (lo LogicOr) EmitExpression(c *compiler) {
 	lo.value.EmitExpression(c)
 	for _, la := range lo.or {
 		la.EmitExpression(c)
-		panic("todo logic or")
+		c.emitByte(OpOr)
 	}
 }
 
@@ -103,7 +104,7 @@ func (la LogicAnd) EmitExpression(c *compiler) {
 	la.value.EmitExpression(c)
 	for _, comp := range la.and {
 		comp.EmitExpression(c)
-		panic("todo logic and")
+		c.emitByte(OpAnd)
 	}
 }
 
@@ -114,7 +115,7 @@ func (la LogicAnd) printTree(indent int) {
 	}
 
 	printIndent(indent)
-	fmt.Fprint(os.Stderr, "And")
+	fmt.Fprintln(os.Stderr, "And")
 	la.value.printTree(indent + 1)
 	for _, comp := range la.and {
 		comp.printTree(indent + 1)
@@ -126,6 +127,8 @@ type Comparison struct {
 	items []ComparisonItem
 }
 
+// todo: could return second rather than pop but that would not
+// be compatible with Lua
 func (comp Comparison) EmitExpression(c *compiler) {
 	comp.term.EmitExpression(c)
 	for _, ci := range comp.items {
@@ -146,13 +149,12 @@ func (comp Comparison) printTree(indent int) {
 	}
 
 	printIndent(indent)
-	fmt.Fprintln(os.Stderr, "Compare")
+	fmt.Fprintln(os.Stderr, comp.items[0].compareOp)
 	comp.term.printTree(indent + 1)
-	for _, comp := range comp.items {
-		printIndent(indent + 1)
-		fmt.Println(comp.compareOp)
-		comp.term.printTree(indent + 1)
-	}
+	Comparison{
+		comp.items[0].term,
+		comp.items[1:],
+	}.printTree(indent + 1)
 }
 
 type ComparisonItem struct {

@@ -9,7 +9,7 @@ import (
 func DebugTrace(vm *VM) {
 	var trace func(int, *VM)
 	switch vm.previous() {
-	case compiler.OpAdd, compiler.OpSubtract, compiler.OpNot, compiler.OpNegate, compiler.OpMult, compiler.OpDivide, compiler.OpNil, compiler.OpReturn, compiler.OpPop, compiler.OpAssert, compiler.OpEquals:
+	case compiler.OpAdd, compiler.OpSubtract, compiler.OpNot, compiler.OpNegate, compiler.OpMult, compiler.OpDivide, compiler.OpNil, compiler.OpReturn, compiler.OpPop, compiler.OpAssert, compiler.OpEquals, compiler.OpAnd, compiler.OpOr:
 		trace = traceInstruction
 	case compiler.OpConstant:
 		trace = traceConstant
