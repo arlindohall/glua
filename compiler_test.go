@@ -45,3 +45,9 @@ func TestAssertNotFalse(t *testing.T) {
 
 	runWithoutError(t, text)
 }
+
+func TestArithmeticAll(t *testing.T) {
+	text := "assert 1 * 2 + 3 / 4 - 5 / 6 * 7 * 8 * 3 + 9 + 1 / 4 == -128"
+
+	runWithoutError(t, text)
+}

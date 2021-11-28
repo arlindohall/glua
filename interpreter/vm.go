@@ -53,6 +53,19 @@ func (vm *VM) run() value.Value {
 			vm.push(val)
 		case compiler.OpNil:
 			vm.push(value.Nil{})
+		case compiler.OpEquals:
+			val2 := vm.pop()
+			val1 := vm.pop()
+
+			if val1.IsNumber() && val2.IsNumber() {
+				vm.push(value.Boolean{Val: val1.AsNumber() == val2.AsNumber()})
+			} else if val1.IsBoolean() && val2.IsBoolean() {
+				vm.push(value.Boolean{Val: val1.AsBoolean() == val2.AsBoolean()})
+			} else if val1.IsNil() && val2.IsNil() {
+				vm.push(value.Boolean{Val: true})
+			} else {
+				vm.push(value.Boolean{Val: false})
+			}
 		case compiler.OpSubtract:
 			vm.arithmetic("subtract", func(a, b float64) float64 { return a - b })
 		case compiler.OpDivide:

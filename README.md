@@ -60,7 +60,7 @@ Unary := ('-' | '!') Unary | Exponent
 
 Exponent := Primary ( '^' Primary )
 
-Primary := Number | String | Word
+Primary := Number | String | Identifier
 
 Number := [0-9] +
 
@@ -71,7 +71,7 @@ String := '"' StringChar * '"'
 # the escaped characters
 StringChar := ! ( '\' | '"') | '\"'
 
-Word := [a-zA-Z] [a-zA-Z0-9_-] *
+Identifier := [a-zA-Z] [a-zA-Z0-9_-] *
 ```
 
 [1]: https://craftinginterpreters.com/appendix-i.html

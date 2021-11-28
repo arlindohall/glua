@@ -130,7 +130,12 @@ func (comp Comparison) EmitExpression(c *compiler) {
 	comp.term.EmitExpression(c)
 	for _, ci := range comp.items {
 		ci.term.EmitExpression(c)
-		panic("todo Emit comparison")
+		switch ci.compareOp {
+		case scanner.TokenEqualEqual:
+			c.emitByte(OpEquals)
+		default:
+			c.error(fmt.Sprint("Unknown comparator operator: ", ci.compareOp))
+		}
 	}
 }
 
@@ -170,7 +175,7 @@ func (t Term) EmitExpression(c *compiler) {
 		case scanner.TokenMinus:
 			c.emitByte(OpSubtract)
 		default:
-			panic("unreachable")
+			c.error(fmt.Sprint("Unknown term operator: ", ti.termOp))
 		}
 	}
 }
@@ -211,7 +216,7 @@ func (f Factor) EmitExpression(c *compiler) {
 		case scanner.TokenSlash:
 			c.emitByte(OpDivide)
 		default:
-			panic("unreachable")
+			c.error(fmt.Sprint("Unkown factor operator: ", u.factorOp))
 		}
 	}
 }

@@ -17,6 +17,8 @@ func (op Op) String() string {
 		return "OpPop"
 	case OpReturn:
 		return "OpReturn"
+	case OpEquals:
+		return "OpEquals"
 	case OpAdd:
 		return "OpAdd"
 	case OpSubtract:
@@ -49,7 +51,7 @@ func DebugPrint(function Function) {
 		switch bytecode[i] {
 		case OpConstant:
 			print = printConstant
-		case OpAdd, OpSubtract, OpNot, OpNegate, OpMult, OpDivide, OpNil, OpReturn, OpPop, OpAssert:
+		case OpAdd, OpSubtract, OpNot, OpNegate, OpMult, OpDivide, OpNil, OpReturn, OpPop, OpAssert, OpEquals:
 			print = printInstruction
 		default:
 			panic(fmt.Sprint("Unknown op for debug print: ", bytecode[i]))

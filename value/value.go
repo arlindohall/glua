@@ -8,7 +8,10 @@ type Value interface {
 	IsNumber() bool
 	AsNumber() float64
 
+	IsBoolean() bool
 	AsBoolean() bool
+
+	IsNil() bool
 }
 
 type Number struct {
@@ -27,8 +30,16 @@ func (n Number) AsNumber() float64 {
 	return n.Val
 }
 
+func (n Number) IsBoolean() bool {
+	return false
+}
+
 func (n Number) AsBoolean() bool {
 	return n.Val != 0
+}
+
+func (n Number) IsNil() bool {
+	return false
 }
 
 type Boolean struct {
@@ -51,8 +62,16 @@ func (b Boolean) AsNumber() float64 {
 	}
 }
 
+func (n Boolean) IsBoolean() bool {
+	return true
+}
+
 func (b Boolean) AsBoolean() bool {
 	return b.Val
+}
+
+func (b Boolean) IsNil() bool {
+	return false
 }
 
 type Nil struct{}
@@ -69,6 +88,14 @@ func (n Nil) AsNumber() float64 {
 	return 0
 }
 
+func (n Nil) IsBoolean() bool {
+	return false
+}
+
 func (n Nil) AsBoolean() bool {
 	return false
+}
+
+func (n Nil) IsNil() bool {
+	return true
 }

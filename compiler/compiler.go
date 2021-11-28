@@ -12,9 +12,10 @@ const (
 	OpAssert
 	OpConstant
 	OpDivide
-	OpNil
+	OpEquals
 	OpMult
 	OpNegate
+	OpNil
 	OpNot
 	OpPop
 	OpReturn

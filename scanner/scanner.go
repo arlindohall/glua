@@ -26,6 +26,7 @@ const (
 	TokenBang
 	TokenCaret
 	TokenEof
+	TokenEqual
 	TokenEqualEqual
 	TokenFalse
 	TokenGreater
@@ -154,6 +155,15 @@ func (scanner *scanner) scanToken() (Token, error) {
 	case r == '!':
 		scanner.advance()
 		return Token{"!", TokenBang}, nil
+	case r == '=':
+		scanner.advance()
+		next, _ := scanner.peekRune()
+		if next == '=' {
+			scanner.advance()
+			return Token{"==", TokenEqualEqual}, nil
+		} else {
+			return Token{"=", TokenEqual}, nil
+		}
 	default:
 		scanner.advance()
 		scanner.error(fmt.Sprint("Unexpected character '", string([]rune{r}), "'"))
