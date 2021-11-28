@@ -239,10 +239,14 @@ func (comp *compiler) primary() Primary {
 
 		comp.advance()
 		return NumberPrimary(flt)
+	case scanner.TokenString:
+		str := StringPrimary(comp.current().Text)
+		comp.advance()
+		return str
 	default:
 		comp.error(fmt.Sprint("Unexpected token:", comp.current()))
 		comp.advance()
-		return nil
+		return NilPrimary()
 	}
 }
 

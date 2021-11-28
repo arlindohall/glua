@@ -57,3 +57,9 @@ func TestAndExpression(t *testing.T) {
 
 	runWithoutError(t, text)
 }
+
+func TestStringLiteral(t *testing.T) {
+	text := "assert \"abc\" == \"abc\""
+
+	runWithoutError(t, text)
+}

@@ -11,15 +11,45 @@ type Value interface {
 	IsBoolean() bool
 	AsBoolean() bool
 
+	IsString() bool
+
 	IsNil() bool
 }
 
-type Number struct {
-	Val float64
+type StringVal string
+
+func (s StringVal) String() string {
+	return string(s)
 }
 
+func (s StringVal) IsNumber() bool {
+	return false
+}
+
+func (s StringVal) AsNumber() float64 {
+	panic("Cannot coerce string to number")
+}
+
+func (s StringVal) IsBoolean() bool {
+	return false
+}
+
+func (s StringVal) AsBoolean() bool {
+	return true
+}
+
+func (s StringVal) IsString() bool {
+	return true
+}
+
+func (s StringVal) IsNil() bool {
+	return false
+}
+
+type Number float64
+
 func (n Number) String() string {
-	return fmt.Sprint(n.Val)
+	return fmt.Sprint(float64(n))
 }
 
 func (n Number) IsNumber() bool {
@@ -27,7 +57,7 @@ func (n Number) IsNumber() bool {
 }
 
 func (n Number) AsNumber() float64 {
-	return n.Val
+	return float64(n)
 }
 
 func (n Number) IsBoolean() bool {
@@ -35,19 +65,21 @@ func (n Number) IsBoolean() bool {
 }
 
 func (n Number) AsBoolean() bool {
-	return n.Val != 0
+	return float64(n) != 0
+}
+
+func (n Number) IsString() bool {
+	return false
 }
 
 func (n Number) IsNil() bool {
 	return false
 }
 
-type Boolean struct {
-	Val bool
-}
+type Boolean bool
 
 func (b Boolean) String() string {
-	return fmt.Sprint(b.Val)
+	return fmt.Sprint(bool(b))
 }
 
 func (b Boolean) IsNumber() bool {
@@ -55,7 +87,7 @@ func (b Boolean) IsNumber() bool {
 }
 
 func (b Boolean) AsNumber() float64 {
-	if b.Val {
+	if bool(b) {
 		return 1
 	} else {
 		return 0
@@ -67,7 +99,11 @@ func (n Boolean) IsBoolean() bool {
 }
 
 func (b Boolean) AsBoolean() bool {
-	return b.Val
+	return bool(b)
+}
+
+func (b Boolean) IsString() bool {
+	return false
 }
 
 func (b Boolean) IsNil() bool {
@@ -93,6 +129,10 @@ func (n Nil) IsBoolean() bool {
 }
 
 func (n Nil) AsBoolean() bool {
+	return false
+}
+
+func (n Nil) IsString() bool {
 	return false
 }
 

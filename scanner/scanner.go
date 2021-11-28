@@ -40,6 +40,7 @@ const (
 	TokenSemicolon
 	TokenSlash
 	TokenStar
+	TokenString
 	TokenTildeEqual
 	TokenTrue
 )
@@ -164,6 +165,9 @@ func (scanner *scanner) scanToken() (Token, error) {
 		} else {
 			return Token{"=", TokenEqual}, nil
 		}
+	case r == '"':
+		scanner.advance()
+		return scanner.scanString()
 	default:
 		scanner.advance()
 		scanner.error(fmt.Sprint("Unexpected character '", string([]rune{r}), "'"))
@@ -194,6 +198,52 @@ func (scanner *scanner) scanNumber() (Token, error) {
 		Text: string(runes),
 		Type: TokenNumber,
 	}, nil
+}
+
+func (scanner *scanner) scanString() (Token, error) {
+	var literal []rune
+	for r, err := scanner.scanRune(); err == nil && r != '"'; r, err = scanner.scanRune() {
+		if r == '\n' {
+			scanner.error("Newline in string literal")
+			return Token{string(literal), TokenError}, scanner.err
+		}
+
+		if r != '\\' {
+			literal = append(literal, r)
+			continue
+		}
+
+		escape, escapeErr := scanner.scanEscape()
+
+		if escapeErr != nil {
+			return Token{"", TokenError}, escapeErr
+		}
+
+		literal = append(literal, escape)
+	}
+
+	return Token{string(literal), TokenString}, nil
+}
+
+func (scanner *scanner) scanEscape() (rune, error) {
+	r, err := scanner.scanRune()
+
+	if err != nil {
+		scanner.error("Failed to scan escape sequence")
+		return 0, nil
+	}
+
+	switch r {
+	case '\\':
+		return '\\', nil
+	case 'n':
+		return '\n', nil
+	case '"':
+		return '"', nil
+	default:
+		scanner.error(fmt.Sprint("Invalid escape sequence: \\", r))
+		return 0, scanner.err
+	}
 }
 
 func (scanner *scanner) scanWord() (Token, error) {

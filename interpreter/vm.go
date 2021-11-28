@@ -58,24 +58,26 @@ func (vm *VM) run() value.Value {
 			val1 := vm.pop()
 
 			if val1.IsNumber() && val2.IsNumber() {
-				vm.push(value.Boolean{Val: val1.AsNumber() == val2.AsNumber()})
+				vm.push(value.Boolean(val1.AsNumber() == val2.AsNumber()))
 			} else if val1.IsBoolean() && val2.IsBoolean() {
-				vm.push(value.Boolean{Val: val1.AsBoolean() == val2.AsBoolean()})
+				vm.push(value.Boolean(val1.AsBoolean() == val2.AsBoolean()))
+			} else if val1.IsString() && val2.IsString() {
+				vm.push(value.Boolean(val1.String() == val2.String()))
 			} else if val1.IsNil() && val2.IsNil() {
-				vm.push(value.Boolean{Val: true})
+				vm.push(value.Boolean(true))
 			} else {
-				vm.push(value.Boolean{Val: false})
+				vm.push(value.Boolean(false))
 			}
 		case compiler.OpAnd:
 			val2 := vm.pop()
 			val1 := vm.pop()
 
-			vm.push(value.Boolean{Val: val1.AsBoolean() && val2.AsBoolean()})
+			vm.push(value.Boolean(val1.AsBoolean() && val2.AsBoolean()))
 		case compiler.OpOr:
 			val2 := vm.pop()
 			val1 := vm.pop()
 
-			vm.push(value.Boolean{Val: val1.AsBoolean() || val2.AsBoolean()})
+			vm.push(value.Boolean(val1.AsBoolean() || val2.AsBoolean()))
 		case compiler.OpSubtract:
 			vm.arithmetic("subtract", func(a, b float64) float64 { return a - b })
 		case compiler.OpDivide:
@@ -84,17 +86,17 @@ func (vm *VM) run() value.Value {
 			vm.arithmetic("multiply", func(a, b float64) float64 { return a * b })
 		case compiler.OpNegate:
 			val := vm.pop().AsNumber()
-			vm.push(value.Number{Val: -val})
+			vm.push(value.Number(-val))
 		case compiler.OpNot:
 			val := vm.pop().AsBoolean()
-			vm.push(value.Boolean{Val: !val})
+			vm.push(value.Boolean(!val))
 		case compiler.OpAdd:
 			val2 := vm.pop()
 			val1 := vm.pop()
 
 			switch {
 			case val1.IsNumber() && val2.IsNumber():
-				vm.push(value.Number{Val: val1.AsNumber() + val2.AsNumber()})
+				vm.push(value.Number(val1.AsNumber() + val2.AsNumber()))
 			default:
 				vm.error("Cannot add two non-numbers")
 			}
@@ -129,7 +131,7 @@ func (vm *VM) arithmetic(name string, op func(float64, float64) float64) {
 
 	switch {
 	case val1.IsNumber() && val2.IsNumber():
-		vm.push(value.Number{Val: op(val1.AsNumber(), val2.AsNumber())})
+		vm.push(value.Number(op(val1.AsNumber(), val2.AsNumber())))
 	default:
 		vm.error(fmt.Sprintf("Cannot %s two non-numbers", name))
 	}

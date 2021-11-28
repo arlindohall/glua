@@ -329,13 +329,25 @@ func (vp ValuePrimary) printTree(indent int) {
 
 func NumberPrimary(f float64) ValuePrimary {
 	return ValuePrimary{
-		value: value.Number{Val: f},
+		value: value.Number(f),
 	}
 }
 
 func BooleanPrimary(b bool) ValuePrimary {
 	return ValuePrimary{
-		value: value.Boolean{Val: b},
+		value: value.Boolean(b),
+	}
+}
+
+func StringPrimary(s string) ValuePrimary {
+	return ValuePrimary{
+		value: value.StringVal(s),
+	}
+}
+
+func NilPrimary() ValuePrimary {
+	return ValuePrimary{
+		value: value.Nil{},
 	}
 }
 

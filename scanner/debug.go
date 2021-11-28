@@ -13,6 +13,8 @@ func (tt TokenType) String() string {
 		return "TokenAssert"
 	case TokenNumber:
 		return "TokenNumber"
+	case TokenString:
+		return "TokenString"
 	case TokenEof:
 		return "TokenEof"
 	case TokenPlus:

@@ -57,7 +57,6 @@ Factor := Unary ( ('*' | '/') Unary ) *
 # Instead use a recursive definition
 Unary := ('-' | '!') Unary | Exponent
 
-
 Exponent := Primary ( '^' Primary )
 
 Primary := Number | String | Identifier
