@@ -65,7 +65,9 @@ func Compile(text []scanner.Token, mode ReturnMode) (Function, error) {
 func (comp *compiler) compile() {
 	for comp.current().Type != scanner.TokenEof {
 		decl := comp.declaration()
-		fmt.Println(decl)
+		if DebugAst {
+			decl.PrintTree()
+		}
 		decl.EmitDeclaration(comp)
 	}
 }

@@ -4,11 +4,14 @@ import (
 	"arlindohall/glua/scanner"
 	"arlindohall/glua/value"
 	"fmt"
+	"os"
 )
+
+const DebugAst = true
 
 type Declaration interface {
 	EmitDeclaration(*compiler)
-	String() string
+	PrintTree()
 }
 
 type StatementDeclaration struct {
@@ -19,13 +22,14 @@ func (sd StatementDeclaration) EmitDeclaration(c *compiler) {
 	sd.statement.EmitStatement(c)
 }
 
-func (sd StatementDeclaration) String() string {
-	return fmt.Sprintf("Declaration(%s)", sd.statement.String())
+func (sd StatementDeclaration) PrintTree() {
+	fmt.Fprintln(os.Stderr, "Statement")
+	sd.statement.printTree(1)
 }
 
 type Statement interface {
 	EmitStatement(*compiler)
-	String() string
+	printTree(int)
 }
 
 type AssertStatement struct {
@@ -37,8 +41,10 @@ func (as AssertStatement) EmitStatement(c *compiler) {
 	c.emitByte(OpAssert)
 }
 
-func (as AssertStatement) String() string {
-	return fmt.Sprintf("Assert(%s)", as.value.String())
+func (as AssertStatement) printTree(indent int) {
+	printIndent(indent)
+	fmt.Fprintln(os.Stderr, "Assert")
+	as.value.printTree(indent + 1)
 }
 
 type ExpressionStatement struct {
@@ -50,13 +56,15 @@ func (es ExpressionStatement) EmitStatement(c *compiler) {
 	c.emitByte(OpPop)
 }
 
-func (es ExpressionStatement) String() string {
-	return fmt.Sprintf("Expression(%s)", es.value.String())
+func (es ExpressionStatement) printTree(indent int) {
+	printIndent(indent)
+	fmt.Fprintln(os.Stderr, "Expression")
+	es.value.printTree(indent + 1)
 }
 
 type Expression interface {
 	EmitExpression(*compiler)
-	String() string
+	printTree(int)
 }
 
 type LogicOr struct {
@@ -72,14 +80,17 @@ func (lo LogicOr) EmitExpression(c *compiler) {
 	}
 }
 
-func (lo LogicOr) String() string {
-	if lo.or != nil {
-		var ors []LogicAnd
-		ors = append(ors, lo.value)
-		ors = append(ors, lo.or...)
-		return fmt.Sprintf("Or(%s)", ors)
-	} else {
-		return lo.value.String()
+func (lo LogicOr) printTree(indent int) {
+	if len(lo.or) == 0 {
+		lo.value.printTree(indent)
+		return
+	}
+
+	printIndent(indent)
+	fmt.Fprintln(os.Stderr, "Or")
+	lo.value.printTree(indent + 1)
+	for _, or := range lo.or {
+		or.printTree(indent + 1)
 	}
 }
 
@@ -96,14 +107,17 @@ func (la LogicAnd) EmitExpression(c *compiler) {
 	}
 }
 
-func (la LogicAnd) String() string {
-	if la.and != nil {
-		var ands []Comparison
-		ands = append(ands, la.value)
-		ands = append(ands, la.and...)
-		return fmt.Sprintf("And(%v)", ands)
-	} else {
-		return la.value.String()
+func (la LogicAnd) printTree(indent int) {
+	if len(la.and) == 0 {
+		la.value.printTree(indent)
+		return
+	}
+
+	printIndent(indent)
+	fmt.Fprint(os.Stderr, "And")
+	la.value.printTree(indent + 1)
+	for _, comp := range la.and {
+		comp.printTree(indent + 1)
 	}
 }
 
@@ -120,11 +134,19 @@ func (comp Comparison) EmitExpression(c *compiler) {
 	}
 }
 
-func (comp Comparison) String() string {
-	if comp.items != nil {
-		panic("todo display comparison")
-	} else {
-		return comp.term.String()
+func (comp Comparison) printTree(indent int) {
+	if len(comp.items) == 0 {
+		comp.term.printTree(indent)
+		return
+	}
+
+	printIndent(indent)
+	fmt.Fprintln(os.Stderr, "Compare")
+	comp.term.printTree(indent + 1)
+	for _, comp := range comp.items {
+		printIndent(indent + 1)
+		fmt.Println(comp.compareOp)
+		comp.term.printTree(indent + 1)
 	}
 }
 
@@ -153,16 +175,20 @@ func (t Term) EmitExpression(c *compiler) {
 	}
 }
 
-func (t Term) String() string {
-	return termString(t.factor, t.items)
-}
-
-func termString(f Factor, tis []TermItem) string {
-	if len(tis) == 0 {
-		return f.String()
-	} else {
-		return fmt.Sprintf("%s(%v, %s)", tis[0].termOp, f, termString(tis[0].factor, tis[1:]))
+func (t Term) printTree(indent int) {
+	if len(t.items) == 0 {
+		t.factor.printTree(indent)
+		return
 	}
+
+	printIndent(indent)
+	fmt.Fprintln(os.Stderr, t.items[0].termOp)
+	t.factor.printTree(indent + 1)
+
+	Term{
+		t.items[0].factor,
+		t.items[1:],
+	}.printTree(indent + 1)
 }
 
 type TermItem struct {
@@ -190,16 +216,20 @@ func (f Factor) EmitExpression(c *compiler) {
 	}
 }
 
-func (f Factor) String() string {
-	return factorString(f.unary, f.items)
-}
-
-func factorString(u Unary, fis []FactorItem) string {
-	if len(fis) == 0 {
-		return u.String()
-	} else {
-		return fmt.Sprintf("%s(%s, %s)", fis[0].factorOp, u.String(), factorString(fis[0].unary, fis[1:]))
+func (f Factor) printTree(indent int) {
+	if len(f.items) == 0 {
+		f.unary.printTree(indent)
+		return
 	}
+
+	printIndent(indent)
+	fmt.Fprintln(os.Stderr, f.items[0].factorOp)
+	f.unary.printTree(indent + 1)
+
+	Factor{
+		f.items[0].unary,
+		f.items[1:],
+	}.printTree(indent + 1)
 }
 
 type FactorItem struct {
@@ -209,7 +239,7 @@ type FactorItem struct {
 
 type Unary interface {
 	EmitUnary(*compiler)
-	String() string
+	printTree(int)
 }
 
 type NegateUnary struct {
@@ -221,8 +251,10 @@ func (nu NegateUnary) EmitUnary(c *compiler) {
 	c.emitByte(OpNegate)
 }
 
-func (nu NegateUnary) String() string {
-	return fmt.Sprintf("Negate(%s)", nu.unary.String())
+func (nu NegateUnary) printTree(indent int) {
+	printIndent(indent)
+	fmt.Fprintln(os.Stderr, "Negate")
+	nu.unary.printTree(indent + 1)
 }
 
 type NotUnary struct {
@@ -234,8 +266,10 @@ func (nu NotUnary) EmitUnary(c *compiler) {
 	c.emitByte(OpNot)
 }
 
-func (nu NotUnary) String() string {
-	return fmt.Sprintf("Not(%s)", nu.unary.String())
+func (nu NotUnary) printTree(indent int) {
+	printIndent(indent)
+	fmt.Fprintln(os.Stderr, "Not")
+	nu.unary.printTree(indent + 1)
 }
 
 type BaseUnary struct {
@@ -251,11 +285,14 @@ func (nu BaseUnary) EmitUnary(c *compiler) {
 	}
 }
 
-func (nu BaseUnary) String() string {
+func (nu BaseUnary) printTree(indent int) {
 	if nu.exponent.exp == nil {
-		return nu.exponent.base.String()
+		nu.exponent.base.printTree(indent)
 	} else {
-		return fmt.Sprintf("Exp(%v, %v)", nu.exponent.base, nu.exponent.exp)
+		printIndent(indent)
+		fmt.Fprintln(os.Stderr, "Exp")
+		nu.exponent.base.printTree(indent + 1)
+		nu.exponent.exp.printTree(indent + 1)
 	}
 }
 
@@ -266,7 +303,7 @@ type Exponent struct {
 
 type Primary interface {
 	EmitPrimary(*compiler)
-	String() string
+	printTree(int)
 }
 
 type ValuePrimary struct {
@@ -278,8 +315,9 @@ func (vp ValuePrimary) EmitPrimary(c *compiler) {
 	c.emitBytes(OpConstant, b)
 }
 
-func (vp ValuePrimary) String() string {
-	return vp.value.String()
+func (vp ValuePrimary) printTree(indent int) {
+	printIndent(indent)
+	fmt.Fprintln(os.Stderr, vp.value)
 }
 
 func NumberPrimary(f float64) ValuePrimary {
@@ -301,3 +339,9 @@ func BooleanPrimary(b bool) ValuePrimary {
 // type IdentifierPrimary struct {
 // 	value string
 // }
+
+func printIndent(indent int) {
+	for i := 0; i < indent; i++ {
+		fmt.Fprint(os.Stderr, "  ")
+	}
+}
