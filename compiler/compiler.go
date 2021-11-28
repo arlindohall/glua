@@ -243,6 +243,10 @@ func (comp *compiler) primary() Primary {
 		str := StringPrimary(comp.current().Text)
 		comp.advance()
 		return str
+	case scanner.TokenNil:
+		n := NilPrimary()
+		comp.advance()
+		return n
 	default:
 		comp.error(fmt.Sprint("Unexpected token:", comp.current()))
 		comp.advance()

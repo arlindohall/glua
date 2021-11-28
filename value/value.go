@@ -19,7 +19,7 @@ type Value interface {
 type StringVal string
 
 func (s StringVal) String() string {
-	return string(s)
+	return fmt.Sprintf("\"%s\"", string(s))
 }
 
 func (s StringVal) IsNumber() bool {
@@ -65,7 +65,7 @@ func (n Number) IsBoolean() bool {
 }
 
 func (n Number) AsBoolean() bool {
-	return float64(n) != 0
+	return true
 }
 
 func (n Number) IsString() bool {

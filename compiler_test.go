@@ -63,3 +63,21 @@ func TestStringLiteral(t *testing.T) {
 
 	runWithoutError(t, text)
 }
+
+func TestNilFalsey(t *testing.T) {
+	text := "assert ! nil"
+
+	runWithoutError(t, text)
+}
+
+func TestZeroTruthy(t *testing.T) {
+	text := "assert 0"
+
+	runWithoutError(t, text)
+}
+
+func TestEmptyStringTruthy(t *testing.T) {
+	text := "assert \"\""
+
+	runWithoutError(t, text)
+}

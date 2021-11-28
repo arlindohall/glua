@@ -59,7 +59,7 @@ Unary := ('-' | '!') Unary | Exponent
 
 Exponent := Primary ( '^' Primary )
 
-Primary := Number | String | Identifier
+Primary := Number | String | Identifier | 'nil'
 
 Number := [0-9] +
 

@@ -34,6 +34,7 @@ const (
 	TokenLess
 	TokenLessEqual
 	TokenMinus
+	TokenNil
 	TokenNumber
 	TokenOr
 	TokenPlus
@@ -266,6 +267,8 @@ func (scanner *scanner) scanWord() (Token, error) {
 		return Token{source, TokenAnd}, nil
 	case "or":
 		return Token{source, TokenOr}, nil
+	case "nil":
+		return Token{source, TokenNil}, nil
 	default:
 		return Token{source, TokenError}, nil
 	}

@@ -33,6 +33,8 @@ func (tt TokenType) String() string {
 		return "TokenTrue"
 	case TokenFalse:
 		return "TokenFalse"
+	case TokenNil:
+		return "TokenNil"
 	case TokenEqualEqual:
 		return "TokenEqualEqual"
 	case TokenEqual:
