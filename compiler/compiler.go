@@ -1,6 +1,7 @@
 package compiler
 
 import (
+	"arlindohall/glua/glerror"
 	"arlindohall/glua/scanner"
 	"arlindohall/glua/value"
 	"fmt"
@@ -15,6 +16,9 @@ const (
 	OpDivide
 	OpEquals
 	OpGetGlobal
+	OpJumpIfFalse
+	OpLessThan
+	OpLoop
 	OpMult
 	OpNegate
 	OpNil
@@ -39,7 +43,7 @@ type compiler struct {
 	text  []scanner.Token
 	curr  int
 	chunk Chunk
-	err   error
+	err   glerror.GluaErrorChain
 	mode  ReturnMode
 }
 
@@ -53,12 +57,12 @@ type Function struct {
 	Name  string
 }
 
-func Compile(text []scanner.Token, mode ReturnMode) (Function, error) {
+func Compile(text []scanner.Token, mode ReturnMode) (Function, glerror.GluaErrorChain) {
 	compiler := compiler{
 		text,
 		0,
 		Chunk{},
-		nil,
+		glerror.GluaErrorChain{},
 		mode,
 	}
 
@@ -75,6 +79,17 @@ func (comp *compiler) compile() {
 		}
 		decl.EmitDeclaration(comp)
 	}
+}
+
+func (comp *compiler) peek() scanner.Token {
+	if comp.curr+1 >= len(comp.text) {
+		return scanner.Token{
+			Type: scanner.TokenEof,
+			Text: "",
+		}
+	}
+
+	return comp.text[comp.curr+1]
 }
 
 func (comp *compiler) current() scanner.Token {
@@ -124,13 +139,59 @@ func (comp *compiler) statement() Statement {
 		return AssertStatement{
 			value: comp.expression(),
 		}
+	case scanner.TokenWhile:
+		return comp.whileStatement()
 	default:
 		return ExpressionStatement{comp.expression()}
 	}
 }
 
+func (comp *compiler) block() BlockStatement {
+	var block BlockStatement
+
+	if comp.current().Type != scanner.TokenDo {
+		comp.advance()
+		block.statements = append(block.statements, comp.statement())
+		return block
+	}
+
+	comp.consume(scanner.TokenDo)
+
+	for comp.current().Type != scanner.TokenEnd {
+		block.statements = append(block.statements, comp.statement())
+	}
+
+	comp.consume(scanner.TokenEnd)
+
+	return block
+}
+
+func (comp *compiler) whileStatement() Statement {
+	comp.advance()
+
+	return WhileStatement{
+		comp.expression(),
+		comp.block(),
+	}
+}
+
 func (comp *compiler) expression() Expression {
-	return comp.logicOr()
+	return comp.assignment()
+}
+
+func (comp *compiler) assignment() Expression {
+	if comp.current().Type == scanner.TokenIdentifier && comp.peek().Type == scanner.TokenEqual {
+		name := comp.current().Text
+		comp.advance()
+		comp.advance()
+
+		return Assignment{
+			name,
+			comp.expression(),
+		}
+	} else {
+		return comp.logicOr()
+	}
 }
 
 func (comp *compiler) logicOr() LogicOr {
@@ -315,6 +376,38 @@ func (comp *compiler) emitByte(b byte) {
 	comp.chunk.Bytecode = append(comp.chunk.Bytecode, Op(b))
 }
 
+func (comp *compiler) emitJump(op Op) {
+	comp.emitByte(byte(op))
+	comp.emitBytes(0, 0)
+}
+
+func (comp *compiler) chunkSize() int {
+	return len(comp.chunk.Bytecode)
+}
+
+func MergeBytes(upper, lower byte) int {
+	return int((int(upper) << 8) | int(lower))
+}
+
+func SplitBytes(num int) (upper, lower byte) {
+	upper = byte((num >> 8) & 0xff)
+	lower = byte(num & 0xff)
+	return
+}
+
+func (comp *compiler) patchJump(source, dest int) {
+	var dist int
+	if dest > source {
+		dist = dest - source - 3
+	} else {
+		dist = source - dest + 3
+	}
+
+	upper, lower := SplitBytes(dist)
+	comp.chunk.Bytecode[source+1] = Op(upper)
+	comp.chunk.Bytecode[source+2] = Op(lower)
+}
+
 func (comp *compiler) emitReturn() {
 	last := len(comp.chunk.Bytecode) - 1
 	if comp.mode == ReplMode && comp.chunk.Bytecode[last] == OpPop {
@@ -324,21 +417,21 @@ func (comp *compiler) emitReturn() {
 	}
 }
 
-func (comp *compiler) end() (Function, error) {
+func (comp *compiler) end() (Function, glerror.GluaErrorChain) {
 	comp.emitReturn()
 
-	if comp.err != nil {
+	if !comp.err.IsEmpty() {
 		return Function{}, comp.err
 	}
 
 	return Function{
 		comp.chunk,
 		"",
-	}, nil
+	}, comp.err
 }
 
 func (comp *compiler) error(message string) {
-	comp.err = CompileError{message}
+	comp.err.Append(CompileError{message})
 }
 
 type CompileError struct {

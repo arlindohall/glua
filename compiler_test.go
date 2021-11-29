@@ -10,7 +10,7 @@ import (
 func runWithoutError(t *testing.T, text string) {
 	_, err := interpreter.FromString(text).Interpret(compiler.RunFileMode)
 
-	if err != nil {
+	if !err.IsEmpty() {
 		fmt.Println("Error running test: ", err)
 		t.FailNow()
 	}
@@ -85,6 +85,19 @@ func TestEmptyStringTruthy(t *testing.T) {
 func TestGlobalVariable(t *testing.T) {
 	text := `global x = 10
 	assert x == 10`
+
+	runWithoutError(t, text)
+}
+
+func TestWhileStatement(t *testing.T) {
+	text := `
+	global x = 1
+	while x < 10 do
+		x = x + 1
+	end
+
+	assert x == 10
+	`
 
 	runWithoutError(t, text)
 }

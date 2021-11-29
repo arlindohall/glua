@@ -2,6 +2,7 @@ package interpreter
 
 import (
 	"arlindohall/glua/compiler"
+	"arlindohall/glua/glerror"
 	"arlindohall/glua/value"
 	"fmt"
 	"os"
@@ -13,7 +14,7 @@ type VM struct {
 	stack     []value.Value
 	stackSize int
 	globals   map[string]value.Value
-	err       error
+	err       glerror.GluaErrorChain
 }
 
 func NewVm() VM {
@@ -23,11 +24,11 @@ func NewVm() VM {
 		nil,
 		0,
 		make(map[string]value.Value),
-		nil,
+		glerror.GluaErrorChain{},
 	}
 }
 
-func (vm *VM) Interpret(chunk compiler.Chunk) (value.Value, error) {
+func (vm *VM) Interpret(chunk compiler.Chunk) (value.Value, glerror.GluaErrorChain) {
 	vm.chunk = chunk
 
 	// todo: call function
@@ -65,6 +66,8 @@ func (vm *VM) run() value.Value {
 			vm.push(val)
 		case compiler.OpNil:
 			vm.push(value.Nil{})
+		case compiler.OpLessThan:
+			vm.compare(func(v1, v2 float64) bool { return v1 < v2 })
 		case compiler.OpEquals:
 			val2 := vm.pop()
 			val1 := vm.pop()
@@ -113,7 +116,7 @@ func (vm *VM) run() value.Value {
 				vm.error("Cannot add two non-numbers")
 			}
 		case compiler.OpSetGlobal:
-			val := vm.pop()
+			val := vm.peek()
 			i := vm.readByte()
 			name := vm.chunk.Constants[i]
 
@@ -129,6 +132,25 @@ func (vm *VM) run() value.Value {
 			} else {
 				vm.push(val)
 			}
+		case compiler.OpJumpIfFalse:
+			cond := vm.pop()
+
+			if cond.AsBoolean() {
+				vm.advance()
+				vm.advance()
+			} else {
+				upper := byte(vm.readByte())
+				lower := byte(vm.readByte())
+				dist := compiler.MergeBytes(upper, lower)
+
+				vm.ip += dist
+			}
+		case compiler.OpLoop:
+			upper := byte(vm.readByte())
+			lower := byte(vm.readByte())
+			dist := compiler.MergeBytes(upper, lower)
+
+			vm.ip -= dist
 		default:
 			vm.error(fmt.Sprint("Do not know how to perform: ", op))
 			return nil
@@ -142,6 +164,10 @@ func (vm *VM) pop() value.Value {
 	vm.stack[vm.stackSize] = nil
 
 	return val
+}
+
+func (vm *VM) peek() value.Value {
+	return vm.stack[vm.stackSize-1]
 }
 
 func (vm *VM) push(val value.Value) {
@@ -166,6 +192,17 @@ func (vm *VM) arithmetic(name string, op func(float64, float64) float64) {
 	}
 }
 
+func (vm *VM) compare(compare func(float64, float64) bool) {
+	val2 := vm.pop()
+	val1 := vm.pop()
+
+	if val1.IsNumber() && val2.IsNumber() {
+		vm.push(value.Boolean(compare(val1.AsNumber(), val2.AsNumber())))
+	} else {
+		vm.error("Unable to compare two non-numbers")
+	}
+}
+
 func (vm *VM) readByte() compiler.Op {
 	c := vm.current()
 	vm.advance()
@@ -184,9 +221,13 @@ func (vm *VM) current() compiler.Op {
 	return vm.chunk.Bytecode[vm.ip]
 }
 
+func (vm *VM) next() compiler.Op {
+	return vm.chunk.Bytecode[vm.ip+1]
+}
+
 // todo: error handling
 func (vm *VM) error(message string) {
-	vm.err = RuntimeError{message}
+	vm.err.Append(RuntimeError{message})
 }
 
 type RuntimeError struct {

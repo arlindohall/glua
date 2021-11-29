@@ -43,6 +43,14 @@ func (tt TokenType) String() string {
 		return "TokenEqualEqual"
 	case TokenEqual:
 		return "TokenEqual"
+	case TokenLess:
+		return "TokenLess"
+	case TokenWhile:
+		return "TokenWhile"
+	case TokenDo:
+		return "TokenDo"
+	case TokenEnd:
+		return "TokenEnd"
 	case TokenAnd:
 		return "TokenAnd"
 	case TokenOr:

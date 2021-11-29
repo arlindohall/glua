@@ -29,7 +29,7 @@ func repl() {
 	for line, _, err := reader.ReadLine(); err == nil; line, _, err = reader.ReadLine() {
 		val, err := interpreter.FromString(string(line)).Interpret(compiler.ReplMode)
 
-		if err != nil {
+		if !err.IsEmpty() {
 			fmt.Println(err)
 		} else {
 			fmt.Println(val)
@@ -50,9 +50,9 @@ func runFile(fileName string) {
 
 	reader := bufio.NewReader(file)
 
-	val, err := interpreter.FromBufio(reader).Interpret(compiler.RunFileMode)
+	val, intErr := interpreter.FromBufio(reader).Interpret(compiler.RunFileMode)
 
-	if err != nil {
+	if !intErr.IsEmpty() {
 		switch err.(type) {
 		case scanner.ScanError:
 			fmt.Println(err)

@@ -2,6 +2,7 @@ package interpreter
 
 import (
 	"arlindohall/glua/compiler"
+	"arlindohall/glua/glerror"
 	"arlindohall/glua/scanner"
 	"arlindohall/glua/value"
 	"bufio"
@@ -17,7 +18,7 @@ const (
 // todo: Interpret should return a value for printing
 // todo: Don't provide mode
 type Glua interface {
-	Interpret(mode compiler.ReturnMode) (value.Value, error)
+	Interpret(mode compiler.ReturnMode) (value.Value, glerror.GluaErrorChain)
 }
 
 type BufioInterpreter bufio.Reader
@@ -33,19 +34,19 @@ func FromBufio(reader *bufio.Reader) Glua {
 	return &interpreter
 }
 
-func (text StringInterpreter) Interpret(mode compiler.ReturnMode) (value.Value, error) {
+func (text StringInterpreter) Interpret(mode compiler.ReturnMode) (value.Value, glerror.GluaErrorChain) {
 	reader := bufio.NewReader(strings.NewReader(string(text)))
 
 	return FromBufio(reader).Interpret(mode)
 }
 
-func (text *BufioInterpreter) Interpret(mode compiler.ReturnMode) (value.Value, error) {
+func (text *BufioInterpreter) Interpret(mode compiler.ReturnMode) (value.Value, glerror.GluaErrorChain) {
 	reader := bufio.Reader(*text)
 
 	scan := scanner.Scanner(&reader)
 	tokens, err := scan.ScanTokens()
 
-	if err != nil {
+	if !err.IsEmpty() {
 		return nil, err
 	}
 
@@ -55,7 +56,7 @@ func (text *BufioInterpreter) Interpret(mode compiler.ReturnMode) (value.Value, 
 
 	function, err := compiler.Compile(tokens, mode)
 
-	if err != nil {
+	if !err.IsEmpty() {
 		return nil, err
 	}
 
@@ -67,10 +68,10 @@ func (text *BufioInterpreter) Interpret(mode compiler.ReturnMode) (value.Value, 
 	// todo: use a VM struct that is re-used on Repl
 	val, err := vm.Interpret(function.Chunk)
 
-	if err != nil {
+	if !err.IsEmpty() {
 		fmt.Fprintln(os.Stderr, err)
 		return nil, err
 	}
 
-	return val, nil
+	return val, glerror.GluaErrorChain{}
 }

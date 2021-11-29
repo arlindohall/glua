@@ -31,11 +31,15 @@ Declaration := GlobalDeclaration
     | Statement ( ';' )?
 
 Statement := AssertStatement
+    | WhileStatement
     | Expression
 
 AssertStatement := 'assert' Expression
 
-Expression := LogicOr
+Expression := Assignment
+
+Assignment := Identifier ( '=' Assignment )?
+    | LogicOr
 
 # Logic and is higher precedence than or; or is the lowest
 # precedence operator

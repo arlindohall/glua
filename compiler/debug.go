@@ -21,8 +21,14 @@ func (op Op) String() string {
 		return "OpPop"
 	case OpReturn:
 		return "OpReturn"
+	case OpJumpIfFalse:
+		return "OpJumpIfFalse"
+	case OpLoop:
+		return "OpLoop"
 	case OpEquals:
 		return "OpEquals"
+	case OpLessThan:
+		return "OpLessThan"
 	case OpAdd:
 		return "OpAdd"
 	case OpSubtract:
@@ -59,8 +65,12 @@ func DebugPrint(function Function) {
 		switch bytecode[i] {
 		case OpConstant, OpSetGlobal, OpGetGlobal:
 			print = printConstant
-		case OpAdd, OpSubtract, OpNot, OpNegate, OpMult, OpDivide, OpNil, OpReturn, OpPop, OpAssert, OpEquals, OpAnd, OpOr:
+		case OpAdd, OpSubtract, OpNot, OpNegate, OpMult, OpDivide, OpNil, OpReturn, OpPop, OpAssert, OpEquals, OpLessThan, OpAnd, OpOr:
 			print = printInstruction
+		case OpLoop:
+			print = printLoop
+		case OpJumpIfFalse:
+			print = printJump
 		default:
 			panic(fmt.Sprint("Unknown op for debug print: ", bytecode[i]))
 		}
@@ -71,11 +81,27 @@ func DebugPrint(function Function) {
 }
 
 func printInstruction(i int, bytecode []Op) int {
-	fmt.Fprintf(os.Stderr, "%04d | %-12v\n", i, bytecode[i])
+	fmt.Fprintf(os.Stderr, "%04d | %-16v\n", i, bytecode[i])
 	return i + 1
 }
 
 func printConstant(i int, bytecode []Op) int {
-	fmt.Fprintf(os.Stderr, "%04d | %-12v %-4d\n", i, bytecode[i], bytecode[i+1])
+	fmt.Fprintf(os.Stderr, "%04d | %-16v %-4d\n", i, bytecode[i], bytecode[i+1])
 	return i + 2
+}
+
+func printJump(i int, bytecode []Op) int {
+	jump := MergeBytes(byte(bytecode[i+1]), byte(bytecode[i+2]))
+	start := i + 3
+	to := start + jump
+	fmt.Fprintf(os.Stderr, "%04d | %-16v %-6d (%-6d -> %-6d)\n", i, bytecode[i], jump, start, to)
+	return i + 3
+}
+
+func printLoop(i int, bytecode []Op) int {
+	jump := MergeBytes(byte(bytecode[i+1]), byte(bytecode[i+2]))
+	start := i + 3
+	to := start - jump
+	fmt.Fprintf(os.Stderr, "%04d | %-16v %-6d (%-6d -> %-6d)\n", i, bytecode[i], jump, start, to)
+	return i + 3
 }
