@@ -29,8 +29,10 @@ const (
 	TokenEqual
 	TokenEqualEqual
 	TokenFalse
+	TokenGlobal
 	TokenGreater
 	TokenGreaterEqual
+	TokenIdentifier
 	TokenLess
 	TokenLessEqual
 	TokenMinus
@@ -269,8 +271,10 @@ func (scanner *scanner) scanWord() (Token, error) {
 		return Token{source, TokenOr}, nil
 	case "nil":
 		return Token{source, TokenNil}, nil
+	case "global":
+		return Token{source, TokenGlobal}, nil
 	default:
-		return Token{source, TokenError}, nil
+		return Token{source, TokenIdentifier}, nil
 	}
 
 }

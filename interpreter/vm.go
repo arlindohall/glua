@@ -12,7 +12,19 @@ type VM struct {
 	chunk     compiler.Chunk
 	stack     []value.Value
 	stackSize int
+	globals   map[string]value.Value
 	err       error
+}
+
+func NewVm() VM {
+	return VM{
+		0,
+		compiler.Chunk{},
+		nil,
+		0,
+		make(map[string]value.Value),
+		nil,
+	}
 }
 
 func (vm *VM) Interpret(chunk compiler.Chunk) (value.Value, error) {
@@ -99,6 +111,23 @@ func (vm *VM) run() value.Value {
 				vm.push(value.Number(val1.AsNumber() + val2.AsNumber()))
 			default:
 				vm.error("Cannot add two non-numbers")
+			}
+		case compiler.OpSetGlobal:
+			val := vm.pop()
+			i := vm.readByte()
+			name := vm.chunk.Constants[i]
+
+			vm.globals[name.String()] = val
+		case compiler.OpGetGlobal:
+			i := vm.readByte()
+			name := vm.chunk.Constants[i]
+
+			val := vm.globals[name.String()]
+
+			if val == nil {
+				vm.push(value.Nil{})
+			} else {
+				vm.push(val)
 			}
 		default:
 			vm.error(fmt.Sprint("Do not know how to perform: ", op))

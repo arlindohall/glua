@@ -81,3 +81,10 @@ func TestEmptyStringTruthy(t *testing.T) {
 
 	runWithoutError(t, text)
 }
+
+func TestGlobalVariable(t *testing.T) {
+	text := `global x = 10
+	assert x == 10`
+
+	runWithoutError(t, text)
+}

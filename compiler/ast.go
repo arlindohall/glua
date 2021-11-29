@@ -14,6 +14,32 @@ type Declaration interface {
 	PrintTree()
 }
 
+type GlobalDeclaration struct {
+	name       string
+	assignment Expression
+}
+
+func (gd GlobalDeclaration) EmitDeclaration(c *compiler) {
+	b := c.makeConstant(value.StringVal(gd.name))
+	if gd.assignment != nil {
+		gd.assignment.EmitExpression(c)
+		c.emitBytes(OpSetGlobal, b)
+	} else {
+		c.emitByte(OpNil)
+		c.emitBytes(OpSetGlobal, b)
+	}
+}
+
+func (gd GlobalDeclaration) PrintTree() {
+	fmt.Fprintln(os.Stderr, "GlobalDeclaration")
+	printIndent(1)
+	fmt.Fprintln(os.Stderr, gd.name)
+
+	if gd.assignment != nil {
+		gd.assignment.printTree(1)
+	}
+}
+
 type StatementDeclaration struct {
 	statement Statement
 }
@@ -351,13 +377,16 @@ func NilPrimary() ValuePrimary {
 	}
 }
 
-// type StringPrimary struct {
-// 	value string
-// }
+type GlobalPrimary byte
 
-// type IdentifierPrimary struct {
-// 	value string
-// }
+func (gp GlobalPrimary) EmitPrimary(c *compiler) {
+	c.emitBytes(OpGetGlobal, byte(gp))
+}
+
+func (gp GlobalPrimary) printTree(indent int) {
+	printIndent(indent)
+	fmt.Fprintf(os.Stderr, "Global/%d\n", byte(gp))
+}
 
 func printIndent(indent int) {
 	for i := 0; i < indent; i++ {

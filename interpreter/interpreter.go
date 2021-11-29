@@ -63,7 +63,7 @@ func (text *BufioInterpreter) Interpret(mode compiler.ReturnMode) (value.Value, 
 		compiler.DebugPrint(function)
 	}
 
-	vm := VM{}
+	vm := NewVm()
 	// todo: use a VM struct that is re-used on Repl
 	val, err := vm.Interpret(function.Chunk)
 

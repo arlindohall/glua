@@ -11,7 +11,7 @@ func DebugTrace(vm *VM) {
 	switch vm.previous() {
 	case compiler.OpAdd, compiler.OpSubtract, compiler.OpNot, compiler.OpNegate, compiler.OpMult, compiler.OpDivide, compiler.OpNil, compiler.OpReturn, compiler.OpPop, compiler.OpAssert, compiler.OpEquals, compiler.OpAnd, compiler.OpOr:
 		trace = traceInstruction
-	case compiler.OpConstant:
+	case compiler.OpConstant, compiler.OpSetGlobal, compiler.OpGetGlobal:
 		trace = traceConstant
 	default:
 		panic(fmt.Sprint("Do not know how to trace: ", vm.previous()))

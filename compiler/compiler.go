@@ -14,6 +14,7 @@ const (
 	OpConstant
 	OpDivide
 	OpEquals
+	OpGetGlobal
 	OpMult
 	OpNegate
 	OpNil
@@ -21,6 +22,7 @@ const (
 	OpOr
 	OpPop
 	OpReturn
+	OpSetGlobal
 	OpSubtract
 )
 
@@ -87,7 +89,12 @@ func (comp *compiler) current() scanner.Token {
 }
 
 func (comp *compiler) declaration() Declaration {
-	state := StatementDeclaration{comp.statement()}
+	var state Declaration
+	if comp.current().Type == scanner.TokenGlobal {
+		state = comp.global()
+	} else {
+		state = StatementDeclaration{comp.statement()}
+	}
 
 	// Lua allows semicolons but they are not required
 	if comp.current().Type == scanner.TokenSemicolon {
@@ -95,6 +102,19 @@ func (comp *compiler) declaration() Declaration {
 	}
 
 	return state
+}
+
+func (comp *compiler) global() Declaration {
+	comp.advance()
+	decl := GlobalDeclaration{comp.current().Text, nil}
+
+	comp.advance()
+	if comp.current().Type == scanner.TokenEqual {
+		comp.advance()
+		decl.assignment = comp.expression()
+	}
+
+	return decl
 }
 
 func (comp *compiler) statement() Statement {
@@ -247,6 +267,11 @@ func (comp *compiler) primary() Primary {
 		n := NilPrimary()
 		comp.advance()
 		return n
+	case scanner.TokenIdentifier:
+		name := value.StringVal(comp.current().Text)
+		c := comp.makeConstant(name)
+		comp.advance()
+		return GlobalPrimary(c)
 	default:
 		comp.error(fmt.Sprint("Unexpected token:", comp.current()))
 		comp.advance()
@@ -267,6 +292,12 @@ func (comp *compiler) consume(tt scanner.TokenType) {
 }
 
 func (comp *compiler) makeConstant(value value.Value) byte {
+	for i, c := range comp.chunk.Constants {
+		if c == value {
+			return byte(i)
+		}
+	}
+
 	index := len(comp.chunk.Constants)
 
 	// todo: error if too many constants

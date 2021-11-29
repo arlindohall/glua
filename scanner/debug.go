@@ -11,6 +11,10 @@ func (tt TokenType) String() string {
 		return "TokenError"
 	case TokenAssert:
 		return "TokenAssert"
+	case TokenGlobal:
+		return "TokenGlobal"
+	case TokenIdentifier:
+		return "TokenIdentifier"
 	case TokenNumber:
 		return "TokenNumber"
 	case TokenString:

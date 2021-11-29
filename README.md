@@ -26,7 +26,9 @@ Program := Declaration +
 
 # I can't remember semicolon rules in Lua but for now I'm going to
 # use them to deliniate the end of an expression
-Declaration := Statement ( ';' )?
+Declaration := GlobalDeclaration
+    | LocalDeclaration
+    | Statement ( ';' )?
 
 Statement := AssertStatement
     | Expression
