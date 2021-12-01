@@ -11,10 +11,18 @@ func (op Op) String() string {
 		return "OpAssert"
 	case OpNil:
 		return "OpNil"
+	case OpZero:
+		return "OpZero"
 	case OpGetGlobal:
 		return "OpGetGlobal"
 	case OpSetGlobal:
 		return "OpSetGlobal"
+	case OpCreateTable:
+		return "OpCreateTable"
+	case OpSetTable:
+		return "OpSetTable"
+	case OpSetTableSeq:
+		return "OpSetTableSeq"
 	case OpConstant:
 		return "OpConstant"
 	case OpPop:
@@ -65,7 +73,9 @@ func DebugPrint(function Function) {
 		switch bytecode[i] {
 		case OpConstant, OpSetGlobal, OpGetGlobal:
 			print = printConstant
-		case OpAdd, OpSubtract, OpNot, OpNegate, OpMult, OpDivide, OpNil, OpReturn, OpPop, OpAssert, OpEquals, OpLessThan, OpAnd, OpOr:
+		case OpAdd, OpSubtract, OpNot, OpNegate, OpMult, OpDivide, OpNil,
+			OpReturn, OpPop, OpAssert, OpEquals, OpLessThan, OpAnd, OpOr,
+			OpCreateTable, OpSetTable, OpSetTableSeq, OpZero:
 			print = printInstruction
 		case OpLoop:
 			print = printLoop

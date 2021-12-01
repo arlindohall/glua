@@ -66,6 +66,8 @@ func (vm *VM) run() value.Value {
 			vm.push(val)
 		case compiler.OpNil:
 			vm.push(value.Nil{})
+		case compiler.OpZero:
+			vm.push(value.Number(0))
 		case compiler.OpLessThan:
 			vm.compare(func(v1, v2 float64) bool { return v1 < v2 })
 		case compiler.OpEquals:
@@ -151,6 +153,17 @@ func (vm *VM) run() value.Value {
 			dist := compiler.MergeBytes(upper, lower)
 
 			vm.ip -= dist
+		case compiler.OpCreateTable:
+			vm.push(value.NewTable())
+		case compiler.OpSetTableSeq:
+			// todo: don't put counter here, put it in table for use with
+			// table.insert later
+			val := vm.pop()
+			counter := value.Number(vm.pop().AsNumber() + 1)
+			table := vm.peek().AsTable()
+
+			table.Set(counter, val)
+			vm.push(counter)
 		default:
 			vm.error(fmt.Sprint("Do not know how to perform: ", op))
 			return nil

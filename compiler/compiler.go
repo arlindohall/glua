@@ -13,6 +13,7 @@ const (
 	OpAssert
 	OpAnd
 	OpConstant
+	OpCreateTable
 	OpDivide
 	OpEquals
 	OpGetGlobal
@@ -27,7 +28,10 @@ const (
 	OpPop
 	OpReturn
 	OpSetGlobal
+	OpSetTable
+	OpSetTableSeq
 	OpSubtract
+	OpZero
 )
 
 const (
@@ -329,15 +333,92 @@ func (comp *compiler) primary() Primary {
 		comp.advance()
 		return n
 	case scanner.TokenIdentifier:
-		name := value.StringVal(comp.current().Text)
-		c := comp.makeConstant(name)
-		comp.advance()
-		return GlobalPrimary(c)
+		return comp.variable()
+	case scanner.TokenLeftBrace:
+		return comp.tableLiteral()
 	default:
-		comp.error(fmt.Sprint("Unexpected token:", comp.current()))
+		comp.error(fmt.Sprint("Unexpected token: ", comp.current()))
 		comp.advance()
 		return NilPrimary()
 	}
+}
+
+func (comp *compiler) variable() Primary {
+	name := comp.current().Text
+	comp.advance()
+	return GlobalPrimary(name)
+}
+
+func (comp *compiler) tableLiteral() TableLiteral {
+	comp.advance()
+	var pairs []Pair
+
+	// todo: handle unterminated brace
+	for comp.current().Type != scanner.TokenRightBrace {
+		pairs = append(pairs, comp.pair())
+	}
+
+	comp.consume(scanner.TokenRightBrace)
+
+	return TableLiteral{pairs}
+}
+
+func (comp *compiler) pair() Pair {
+	switch {
+	case comp.current().Type == scanner.TokenLeftBracket:
+		return comp.literalPair()
+	case comp.current().Type == scanner.TokenIdentifier && comp.peek().Type == scanner.TokenEqual:
+		return comp.stringPair()
+	default:
+		return comp.value()
+	}
+}
+
+func (comp *compiler) literalPair() Pair {
+	comp.consume(scanner.TokenLeftBrace)
+
+	expr := comp.expression()
+
+	comp.consume(scanner.TokenRightBracket)
+	comp.consume(scanner.TokenEqual)
+
+	value := comp.expression()
+
+	if comp.current().Type == scanner.TokenComma {
+		comp.consume(scanner.TokenComma)
+	}
+
+	return LiteralPair{
+		key:   expr,
+		value: value,
+	}
+}
+
+func (comp *compiler) stringPair() Pair {
+	ident := comp.current().Text
+
+	comp.consume(scanner.TokenEqual)
+
+	expr := comp.expression()
+
+	if comp.peek().Type == scanner.TokenComma {
+		comp.consume(scanner.TokenComma)
+	}
+
+	return StringPair{
+		key:   StringPrimary(ident),
+		value: expr,
+	}
+}
+
+func (comp *compiler) value() Pair {
+	expr := comp.expression()
+
+	if comp.current().Type == scanner.TokenComma {
+		comp.consume(scanner.TokenComma)
+	}
+
+	return Value{expr}
 }
 
 func (comp *compiler) advance() {

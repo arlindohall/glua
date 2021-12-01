@@ -29,6 +29,8 @@ func (tt TokenType) String() string {
 		return "TokenBang"
 	case TokenSemicolon:
 		return "TokenSemicolon"
+	case TokenComma:
+		return "TokenComma"
 	case TokenSlash:
 		return "TokenSlash"
 	case TokenStar:
@@ -55,8 +57,12 @@ func (tt TokenType) String() string {
 		return "TokenAnd"
 	case TokenOr:
 		return "TokenOr"
+	case TokenLeftBrace:
+		return "TokenLeftBrace"
+	case TokenRightBrace:
+		return "TokenRightBrace"
 	default:
-		panic("Unrecognized TokenType")
+		return fmt.Sprint("UnrecognizedToken/", int(tt))
 	}
 }
 

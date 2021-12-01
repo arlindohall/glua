@@ -65,7 +65,7 @@ Unary := ('-' | '!') Unary | Exponent
 
 Exponent := Primary ( '^' Primary )
 
-Primary := Number | String | Identifier | 'nil'
+Primary := Number | String | Identifier | 'nil' | Table
 
 Number := [0-9] +
 
@@ -77,6 +77,18 @@ String := '"' StringChar * '"'
 StringChar := ! ( '\' | '"') | '\"'
 
 Identifier := [a-zA-Z] [a-zA-Z0-9_-] *
+
+Table := '{' Pair * '}'
+
+Pair := StringPair | LiteralPair | Value
+
+StringPair := Identifier '=' Value
+
+LiteralPair := LiteralKey '=' Value
+
+Value := Expression
+
+LiteralKey := '[' Expression ']'
 ```
 
 [1]: https://craftinginterpreters.com/appendix-i.html

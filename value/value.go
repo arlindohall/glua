@@ -13,6 +13,9 @@ type Value interface {
 
 	IsString() bool
 
+	IsTable() bool
+	AsTable() *Table
+
 	IsNil() bool
 }
 
@@ -46,6 +49,14 @@ func (s StringVal) IsNil() bool {
 	return false
 }
 
+func (s StringVal) IsTable() bool {
+	return false
+}
+
+func (s StringVal) AsTable() *Table {
+	panic("Internal error: cannot cast string as table.")
+}
+
 type Number float64
 
 func (n Number) String() string {
@@ -74,6 +85,14 @@ func (n Number) IsString() bool {
 
 func (n Number) IsNil() bool {
 	return false
+}
+
+func (n Number) IsTable() bool {
+	return false
+}
+
+func (n Number) AsTable() *Table {
+	panic("Internal error: cannot cast number as table.")
 }
 
 type Boolean bool
@@ -110,6 +129,14 @@ func (b Boolean) IsNil() bool {
 	return false
 }
 
+func (b Boolean) IsTable() bool {
+	return false
+}
+
+func (b Boolean) AsTable() *Table {
+	panic("Internal error: cannot cast boolean as table.")
+}
+
 type Nil struct{}
 
 func (n Nil) String() string {
@@ -138,4 +165,71 @@ func (n Nil) IsString() bool {
 
 func (n Nil) IsNil() bool {
 	return true
+}
+
+func (n Nil) IsTable() bool {
+	return false
+}
+
+func (n Nil) AsTable() *Table {
+	panic("Internal error: cannot cast nil as table.")
+}
+
+type Table struct {
+	entries map[Value]Value
+}
+
+func NewTable() *Table {
+	return &Table{
+		entries: make(map[Value]Value),
+	}
+}
+
+func (t *Table) String() string {
+	return fmt.Sprintf("Table<%p>", t)
+}
+
+func (t *Table) IsNumber() bool {
+	return false
+}
+
+func (t *Table) AsNumber() float64 {
+	return 0
+}
+
+func (t *Table) IsBoolean() bool {
+	return false
+}
+
+func (t *Table) AsBoolean() bool {
+	return false
+}
+
+func (t *Table) IsString() bool {
+	return false
+}
+
+func (t *Table) IsNil() bool {
+	return false
+}
+
+func (t *Table) IsTable() bool {
+	return true
+}
+
+func (t *Table) AsTable() *Table {
+	return t
+}
+
+func (t *Table) Set(k, v Value) {
+	t.entries[k] = v
+}
+
+func (t *Table) Get(k Value) Value {
+	v := t.entries[k]
+	if v == nil {
+		return Nil{}
+	} else {
+		return v
+	}
 }

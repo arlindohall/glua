@@ -26,6 +26,7 @@ const (
 	TokenAssert
 	TokenBang
 	TokenCaret
+	TokenComma
 	TokenDo
 	TokenEnd
 	TokenEof
@@ -36,6 +37,8 @@ const (
 	TokenGreater
 	TokenGreaterEqual
 	TokenIdentifier
+	TokenLeftBrace
+	TokenLeftBracket
 	TokenLess
 	TokenLessEqual
 	TokenMinus
@@ -43,6 +46,8 @@ const (
 	TokenNumber
 	TokenOr
 	TokenPlus
+	TokenRightBrace
+	TokenRightBracket
 	TokenSemicolon
 	TokenSlash
 	TokenStar
@@ -128,6 +133,17 @@ func (scanner *scanner) revert() {
 	}
 }
 
+func (scanner *scanner) check(r rune) bool {
+	next, err := scanner.peekRune()
+
+	if err == nil && next == r {
+		scanner.advance()
+		return true
+	} else {
+		return false
+	}
+}
+
 func (scanner *scanner) skipWhitespace() {
 	for r, _, err := scanner.reader.ReadRune(); err == nil; r, _, err = scanner.reader.ReadRune() {
 		if unicode.IsSpace(r) {
@@ -178,23 +194,17 @@ func (scanner *scanner) scanToken() (Token, error) {
 			return Token{"=", TokenEqual}, nil
 		}
 	case scanner.check('"'):
-		scanner.advance()
 		return scanner.scanString()
+	case scanner.check('{'):
+		return Token{"{", TokenLeftBrace}, nil
+	case scanner.check('}'):
+		return Token{"}", TokenRightBrace}, nil
+	case scanner.check(','):
+		return Token{",", TokenComma}, nil
 	default:
 		scanner.advance()
 		scanner.error(fmt.Sprint("Unexpected character '", string([]rune{r}), "'"))
 		return Token{}, scanner.err
-	}
-}
-
-func (scanner *scanner) check(r rune) bool {
-	next, err := scanner.peekRune()
-
-	if err == nil && next == r {
-		scanner.advance()
-		return true
-	} else {
-		return false
 	}
 }
 

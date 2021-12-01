@@ -450,15 +450,127 @@ func NilPrimary() ValuePrimary {
 	}
 }
 
-type GlobalPrimary byte
+type GlobalPrimary string
 
 func (gp GlobalPrimary) EmitPrimary(c *compiler) {
-	c.emitBytes(OpGetGlobal, byte(gp))
+	constant := c.makeConstant(value.StringVal(string(gp)))
+	c.emitBytes(OpGetGlobal, constant)
 }
 
 func (gp GlobalPrimary) PrintTree(indent int) {
 	printIndent(indent)
-	fmt.Fprintf(os.Stderr, "Global/%d\n", byte(gp))
+	fmt.Fprintf(os.Stderr, "Global/%s\n", string(gp))
+}
+
+type TableLiteral struct {
+	entries []Pair
+}
+
+func (tl TableLiteral) EmitPrimary(c *compiler) {
+	c.emitByte(OpCreateTable)
+
+	for _, ent := range mapPairs(tl.entries) {
+		ent.EmitPair(c)
+	}
+
+	c.emitByte(OpZero)
+	for _, ent := range valuePairs(tl.entries) {
+		ent.EmitPair(c)
+	}
+	c.emitByte(OpPop)
+}
+
+func valuePairs(pairs []Pair) []Pair {
+	var mapPairs []Pair
+
+	for _, p := range pairs {
+		switch p.(type) {
+		case Value:
+			mapPairs = append(mapPairs, p)
+		}
+	}
+
+	return mapPairs
+}
+
+func mapPairs(pairs []Pair) []Pair {
+	var mapPairs []Pair
+
+	for _, p := range pairs {
+		switch p.(type) {
+		case Value:
+		default:
+			mapPairs = append(mapPairs, p)
+		}
+	}
+
+	return mapPairs
+}
+
+func (tl TableLiteral) PrintTree(indent int) {
+	printIndent(indent)
+	fmt.Fprintln(os.Stderr, "Table")
+
+	for _, entry := range tl.entries {
+		entry.PrintTree(indent + 1)
+	}
+}
+
+type Pair interface {
+	EmitPair(c *compiler)
+	PrintTree(indent int)
+}
+
+type Value struct {
+	value Expression
+}
+
+func (v Value) EmitPair(c *compiler) {
+	v.value.EmitExpression(c)
+	c.emitByte(OpSetTableSeq)
+}
+
+func (v Value) PrintTree(indent int) {
+	printIndent(indent)
+	fmt.Fprintln(os.Stderr, "Value")
+	v.value.PrintTree(indent + 1)
+}
+
+type StringPair struct {
+	key   Primary
+	value Expression
+}
+
+func (sp StringPair) EmitPair(c *compiler) {
+	sp.key.EmitPrimary(c)
+	sp.value.EmitExpression(c)
+	c.emitByte(OpSetTable)
+}
+
+func (sp StringPair) PrintTree(indent int) {
+	printIndent(indent)
+	fmt.Fprintln(os.Stderr, "StringPair")
+	printIndent(indent)
+	fmt.Fprintln(os.Stderr, sp.key)
+	sp.value.PrintTree(indent + 1)
+}
+
+type LiteralPair struct {
+	key   Expression
+	value Expression
+}
+
+func (lp LiteralPair) EmitPair(c *compiler) {
+	lp.key.EmitExpression(c)
+	lp.value.EmitExpression(c)
+	c.emitByte(OpSetTable)
+}
+
+func (lp LiteralPair) PrintTree(indent int) {
+	printIndent(indent)
+	fmt.Fprintln(os.Stderr, "LiteralPair")
+	lp.key.PrintTree(indent + 1)
+	lp.value.PrintTree(indent + 1)
 }
 
 func printIndent(indent int) {

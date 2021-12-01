@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func runWithoutError(t *testing.T, text string) {
+func expectNoErrors(t *testing.T, text string) {
 	_, err := interpreter.FromString(text).Interpret(compiler.RunFileMode)
 
 	if !err.IsEmpty() {
@@ -19,74 +19,74 @@ func runWithoutError(t *testing.T, text string) {
 func TestSingleExpression(t *testing.T) {
 	text := "1 + 2 + 3 + 4"
 
-	runWithoutError(t, text)
+	expectNoErrors(t, text)
 }
 
 func TestArithmeticOperations(t *testing.T) {
 	text := "-1 * 2 + -3 + 4"
 
-	runWithoutError(t, text)
+	expectNoErrors(t, text)
 }
 
 func TestLotsOfNegatives(t *testing.T) {
 	text := "-1 * -1 * -1 * -1 * -1 + 1"
 
-	runWithoutError(t, text)
+	expectNoErrors(t, text)
 }
 
 func TestAssertStatement(t *testing.T) {
 	text := "assert true"
 
-	runWithoutError(t, text)
+	expectNoErrors(t, text)
 }
 
 func TestAssertNotFalse(t *testing.T) {
 	text := "assert !false"
 
-	runWithoutError(t, text)
+	expectNoErrors(t, text)
 }
 
 func TestArithmeticAll(t *testing.T) {
 	text := "assert 1 * 2 + 3 / 4 - 5 / 6 * 7 * 8 * 3 + 9 + 1 / 4 == -128"
 
-	runWithoutError(t, text)
+	expectNoErrors(t, text)
 }
 
 func TestAndExpression(t *testing.T) {
 	text := "assert 1 and 2 == 2 or 3 == 3 == 3"
 
-	runWithoutError(t, text)
+	expectNoErrors(t, text)
 }
 
 func TestStringLiteral(t *testing.T) {
 	text := "assert \"abc\" == \"abc\""
 
-	runWithoutError(t, text)
+	expectNoErrors(t, text)
 }
 
 func TestNilFalsey(t *testing.T) {
 	text := "assert ! nil"
 
-	runWithoutError(t, text)
+	expectNoErrors(t, text)
 }
 
 func TestZeroTruthy(t *testing.T) {
 	text := "assert 0"
 
-	runWithoutError(t, text)
+	expectNoErrors(t, text)
 }
 
 func TestEmptyStringTruthy(t *testing.T) {
 	text := "assert \"\""
 
-	runWithoutError(t, text)
+	expectNoErrors(t, text)
 }
 
 func TestGlobalVariable(t *testing.T) {
 	text := `global x = 10
 	assert x == 10`
 
-	runWithoutError(t, text)
+	expectNoErrors(t, text)
 }
 
 func TestWhileStatement(t *testing.T) {
@@ -99,5 +99,11 @@ func TestWhileStatement(t *testing.T) {
 	assert x == 10
 	`
 
-	runWithoutError(t, text)
+	expectNoErrors(t, text)
+}
+
+func TestTableLiteral(t *testing.T) {
+	text := "x = {1, 2, 3}"
+
+	expectNoErrors(t, text)
 }
