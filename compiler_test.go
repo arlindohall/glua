@@ -1,14 +1,14 @@
 package main
 
 import (
-	"arlindohall/glua/compiler"
 	"arlindohall/glua/interpreter"
 	"fmt"
 	"testing"
 )
 
 func expectNoErrors(t *testing.T, text string) {
-	_, err := interpreter.FromString(text).Interpret(compiler.RunFileMode)
+	vm := interpreter.NewVm()
+	_, err := interpreter.FromString(&vm, text).Interpret()
 
 	if !err.IsEmpty() {
 		fmt.Println("Error running test: ", err)

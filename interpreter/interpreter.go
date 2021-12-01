@@ -15,33 +15,50 @@ const (
 	PrintTokens, PrintBytecode, TraceExecution bool = true, true, true
 )
 
-// todo: Interpret should return a value for printing
 // todo: Don't provide mode
+// todo: Glua should include a VM
 type Glua interface {
-	Interpret(mode compiler.ReturnMode) (value.Value, glerror.GluaErrorChain)
+	Interpret() (value.Value, glerror.GluaErrorChain)
 }
 
-type BufioInterpreter bufio.Reader
+type BufioInterpreter struct {
+	text *bufio.Reader
+	mode compiler.ReturnMode
+	vm   *VM
+}
 
-type StringInterpreter string
+type StringInterpreter struct {
+	text string
+	mode compiler.ReturnMode
+	vm   *VM
+}
 
-func FromString(text string) Glua {
-	return StringInterpreter(text)
+func FromString(vm *VM, text string) Glua {
+	return StringInterpreter{text, compiler.ReplMode, vm}
 }
 
 func FromBufio(reader *bufio.Reader) Glua {
-	interpreter := BufioInterpreter(*reader)
+	vm := NewVm()
+	interpreter := BufioInterpreter{reader, compiler.RunFileMode, &vm}
 	return &interpreter
 }
 
-func (text StringInterpreter) Interpret(mode compiler.ReturnMode) (value.Value, glerror.GluaErrorChain) {
-	reader := bufio.NewReader(strings.NewReader(string(text)))
-
-	return FromBufio(reader).Interpret(mode)
+func (interp StringInterpreter) Interpret() (value.Value, glerror.GluaErrorChain) {
+	reader := bufio.NewReader(strings.NewReader(string(interp.text)))
+	return interp.ToBufioInterpreter(reader).Interpret()
 }
 
-func (text *BufioInterpreter) Interpret(mode compiler.ReturnMode) (value.Value, glerror.GluaErrorChain) {
-	reader := bufio.Reader(*text)
+func (in StringInterpreter) ToBufioInterpreter(reader *bufio.Reader) Glua {
+	interp := BufioInterpreter{
+		reader,
+		in.mode,
+		in.vm,
+	}
+	return &interp
+}
+
+func (interp *BufioInterpreter) Interpret() (value.Value, glerror.GluaErrorChain) {
+	reader := bufio.Reader(*interp.text)
 
 	scan := scanner.Scanner(&reader)
 	tokens, err := scan.ScanTokens()
@@ -54,7 +71,7 @@ func (text *BufioInterpreter) Interpret(mode compiler.ReturnMode) (value.Value, 
 		scanner.DebugTokens(tokens)
 	}
 
-	function, err := compiler.Compile(tokens, mode)
+	function, err := compiler.Compile(tokens, interp.mode)
 
 	if !err.IsEmpty() {
 		return nil, err
@@ -64,9 +81,8 @@ func (text *BufioInterpreter) Interpret(mode compiler.ReturnMode) (value.Value, 
 		compiler.DebugPrint(function)
 	}
 
-	vm := NewVm()
 	// todo: use a VM struct that is re-used on Repl
-	val, err := vm.Interpret(function.Chunk)
+	val, err := interp.vm.Interpret(function.Chunk)
 
 	if !err.IsEmpty() {
 		fmt.Fprintln(os.Stderr, err)

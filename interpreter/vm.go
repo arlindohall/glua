@@ -30,6 +30,7 @@ func NewVm() VM {
 
 func (vm *VM) Interpret(chunk compiler.Chunk) (value.Value, glerror.GluaErrorChain) {
 	vm.chunk = chunk
+	vm.ip = 0
 
 	// todo: call function
 	if TraceExecution {

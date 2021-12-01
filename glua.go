@@ -26,8 +26,10 @@ func repl() {
 	fmt.Println("Running REPL...")
 	fmt.Print("> ")
 
+	// todo: add history
+	vm := interpreter.NewVm()
 	for line, _, err := reader.ReadLine(); err == nil; line, _, err = reader.ReadLine() {
-		val, err := interpreter.FromString(string(line)).Interpret(compiler.ReplMode)
+		val, err := interpreter.FromString(&vm, string(line)).Interpret()
 
 		if !err.IsEmpty() {
 			fmt.Println(err)
@@ -50,7 +52,7 @@ func runFile(fileName string) {
 
 	reader := bufio.NewReader(file)
 
-	val, intErr := interpreter.FromBufio(reader).Interpret(compiler.RunFileMode)
+	val, intErr := interpreter.FromBufio(reader).Interpret()
 
 	if !intErr.IsEmpty() {
 		switch err.(type) {
