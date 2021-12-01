@@ -177,11 +177,13 @@ func (n Nil) AsTable() *Table {
 
 type Table struct {
 	entries map[Value]Value
+	size    int
 }
 
 func NewTable() *Table {
 	return &Table{
 		entries: make(map[Value]Value),
+		size:    0,
 	}
 }
 
@@ -223,6 +225,12 @@ func (t *Table) AsTable() *Table {
 
 func (t *Table) Set(k, v Value) {
 	t.entries[k] = v
+}
+
+func (t *Table) Insert(v Value) {
+	next := t.size + 1
+	t.entries[Number(next)] = v
+	t.size = next
 }
 
 func (t *Table) Get(k Value) Value {

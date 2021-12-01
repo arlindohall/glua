@@ -29,7 +29,7 @@ const (
 	OpReturn
 	OpSetGlobal
 	OpSetTable
-	OpSetTableSeq
+	OpInsertTable
 	OpSubtract
 	OpZero
 )

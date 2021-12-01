@@ -473,11 +473,9 @@ func (tl TableLiteral) EmitPrimary(c *compiler) {
 		ent.EmitPair(c)
 	}
 
-	c.emitByte(OpZero)
 	for _, ent := range valuePairs(tl.entries) {
 		ent.EmitPair(c)
 	}
-	c.emitByte(OpPop)
 }
 
 func valuePairs(pairs []Pair) []Pair {
@@ -527,7 +525,7 @@ type Value struct {
 
 func (v Value) EmitPair(c *compiler) {
 	v.value.EmitExpression(c)
-	c.emitByte(OpSetTableSeq)
+	c.emitByte(OpInsertTable)
 }
 
 func (v Value) PrintTree(indent int) {

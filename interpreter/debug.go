@@ -11,7 +11,7 @@ func DebugTrace(vm *VM) {
 	switch vm.previous() {
 	case compiler.OpAdd, compiler.OpSubtract, compiler.OpNot, compiler.OpNegate, compiler.OpMult, compiler.OpDivide, compiler.OpNil,
 		compiler.OpReturn, compiler.OpPop, compiler.OpAssert, compiler.OpLessThan, compiler.OpEquals, compiler.OpAnd, compiler.OpOr,
-		compiler.OpCreateTable, compiler.OpSetTable, compiler.OpSetTableSeq, compiler.OpZero:
+		compiler.OpCreateTable, compiler.OpSetTable, compiler.OpInsertTable, compiler.OpZero:
 		trace = traceInstruction
 	case compiler.OpConstant, compiler.OpSetGlobal, compiler.OpGetGlobal:
 		trace = traceConstant

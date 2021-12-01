@@ -155,15 +155,11 @@ func (vm *VM) run() value.Value {
 			vm.ip -= dist
 		case compiler.OpCreateTable:
 			vm.push(value.NewTable())
-		case compiler.OpSetTableSeq:
-			// todo: don't put counter here, put it in table for use with
-			// table.insert later
+		case compiler.OpInsertTable:
 			val := vm.pop()
-			counter := value.Number(vm.pop().AsNumber() + 1)
 			table := vm.peek().AsTable()
 
-			table.Set(counter, val)
-			vm.push(counter)
+			table.Insert(val)
 		default:
 			vm.error(fmt.Sprint("Do not know how to perform: ", op))
 			return nil
