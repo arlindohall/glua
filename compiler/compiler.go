@@ -364,6 +364,7 @@ func (comp *compiler) tableLiteral() TableLiteral {
 }
 
 func (comp *compiler) pair() Pair {
+	fmt.Println(comp.current().Type, comp.peek().Type)
 	switch {
 	case comp.current().Type == scanner.TokenLeftBracket:
 		return comp.literalPair()
@@ -375,7 +376,7 @@ func (comp *compiler) pair() Pair {
 }
 
 func (comp *compiler) literalPair() Pair {
-	comp.consume(scanner.TokenLeftBrace)
+	comp.consume(scanner.TokenLeftBracket)
 
 	expr := comp.expression()
 
@@ -397,11 +398,12 @@ func (comp *compiler) literalPair() Pair {
 func (comp *compiler) stringPair() Pair {
 	ident := comp.current().Text
 
+	comp.consume(scanner.TokenIdentifier)
 	comp.consume(scanner.TokenEqual)
 
 	expr := comp.expression()
 
-	if comp.peek().Type == scanner.TokenComma {
+	if comp.current().Type == scanner.TokenComma {
 		comp.consume(scanner.TokenComma)
 	}
 

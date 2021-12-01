@@ -121,7 +121,7 @@ func (scanner *scanner) scanRune() (rune, error) {
 func (scanner *scanner) advance() (ok bool) {
 	_, err := scanner.scanRune()
 
-	ok = err == io.EOF || err != nil
+	ok = err == io.EOF || err == nil
 	return
 }
 
@@ -145,13 +145,12 @@ func (scanner *scanner) check(r rune) bool {
 }
 
 func (scanner *scanner) skipWhitespace() {
-	for r, _, err := scanner.reader.ReadRune(); err == nil; r, _, err = scanner.reader.ReadRune() {
-		if unicode.IsSpace(r) {
-			continue
+	for r, err := scanner.peekRune(); err == nil; r, err = scanner.peekRune() {
+		if !unicode.IsSpace(r) {
+			return
 		}
 
-		scanner.revert()
-		return
+		scanner.advance()
 	}
 }
 
@@ -199,6 +198,10 @@ func (scanner *scanner) scanToken() (Token, error) {
 		return Token{"{", TokenLeftBrace}, nil
 	case scanner.check('}'):
 		return Token{"}", TokenRightBrace}, nil
+	case scanner.check('['):
+		return Token{"[", TokenLeftBracket}, nil
+	case scanner.check(']'):
+		return Token{"]", TokenRightBracket}, nil
 	case scanner.check(','):
 		return Token{",", TokenComma}, nil
 	default:
@@ -279,8 +282,11 @@ func (scanner *scanner) scanEscape() (rune, error) {
 
 func (scanner *scanner) scanWord() (Token, error) {
 	var word []rune
-	for c, err := scanner.scanRune(); err == nil && isAlpha(c) || isNumber(c); c, err = scanner.scanRune() {
+	for c, err := scanner.peekRune(); err == nil && isAlpha(c) || isNumber(c); c, err = scanner.peekRune() {
 		word = append(word, c)
+		if !scanner.advance() {
+			break
+		}
 	}
 
 	source := string(word)

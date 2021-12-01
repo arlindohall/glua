@@ -548,8 +548,7 @@ func (sp StringPair) EmitPair(c *compiler) {
 func (sp StringPair) PrintTree(indent int) {
 	printIndent(indent)
 	fmt.Fprintln(os.Stderr, "StringPair")
-	printIndent(indent)
-	fmt.Fprintln(os.Stderr, sp.key)
+	sp.key.PrintTree(indent + 1)
 	sp.value.PrintTree(indent + 1)
 }
 

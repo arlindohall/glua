@@ -61,6 +61,10 @@ func (tt TokenType) String() string {
 		return "TokenLeftBrace"
 	case TokenRightBrace:
 		return "TokenRightBrace"
+	case TokenLeftBracket:
+		return "TokenLeftBracket"
+	case TokenRightBracket:
+		return "TokenRightBracket"
 	default:
 		return fmt.Sprint("UnrecognizedToken/", int(tt))
 	}

@@ -223,8 +223,18 @@ func (t *Table) AsTable() *Table {
 	return t
 }
 
-func (t *Table) Set(k, v Value) {
+func (t *Table) Set(k, v Value) bool {
+	if k == nil || k.IsNil() {
+		return false
+	}
+
+	if v == nil || v.IsNil() {
+		delete(t.entries, k)
+		return true
+	}
+
 	t.entries[k] = v
+	return true
 }
 
 func (t *Table) Insert(v Value) {

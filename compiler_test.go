@@ -107,3 +107,15 @@ func TestTableLiteral(t *testing.T) {
 
 	expectNoErrors(t, text)
 }
+
+func TestTableLiteralKeywordArgs(t *testing.T) {
+	text := "x = {a=1, b=2, c=3}"
+
+	expectNoErrors(t, text)
+}
+
+func TestTableLiteralPairArgs(t *testing.T) {
+	text := "x = {[2]=1, [3]=2, [17]=3}"
+
+	expectNoErrors(t, text)
+}

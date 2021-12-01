@@ -49,6 +49,8 @@ func (vm *VM) run() value.Value {
 			DebugTrace(vm)
 		}
 
+		var ok bool = true
+
 		switch op {
 		case compiler.OpAssert:
 			val := vm.pop()
@@ -69,7 +71,7 @@ func (vm *VM) run() value.Value {
 		case compiler.OpZero:
 			vm.push(value.Number(0))
 		case compiler.OpLessThan:
-			vm.compare(func(v1, v2 float64) bool { return v1 < v2 })
+			ok = vm.compare(func(v1, v2 float64) bool { return v1 < v2 })
 		case compiler.OpEquals:
 			val2 := vm.pop()
 			val1 := vm.pop()
@@ -96,11 +98,11 @@ func (vm *VM) run() value.Value {
 
 			vm.push(value.Boolean(val1.AsBoolean() || val2.AsBoolean()))
 		case compiler.OpSubtract:
-			vm.arithmetic("subtract", func(a, b float64) float64 { return a - b })
+			ok = vm.arithmetic("subtract", func(a, b float64) float64 { return a - b })
 		case compiler.OpDivide:
-			vm.arithmetic("divide", func(a, b float64) float64 { return a / b })
+			ok = vm.arithmetic("divide", func(a, b float64) float64 { return a / b })
 		case compiler.OpMult:
-			vm.arithmetic("multiply", func(a, b float64) float64 { return a * b })
+			ok = vm.arithmetic("multiply", func(a, b float64) float64 { return a * b })
 		case compiler.OpNegate:
 			val := vm.pop().AsNumber()
 			vm.push(value.Number(-val))
@@ -115,7 +117,7 @@ func (vm *VM) run() value.Value {
 			case val1.IsNumber() && val2.IsNumber():
 				vm.push(value.Number(val1.AsNumber() + val2.AsNumber()))
 			default:
-				vm.error("Cannot add two non-numbers")
+				return vm.error("Cannot add two non-numbers")
 			}
 		case compiler.OpSetGlobal:
 			val := vm.peek()
@@ -125,12 +127,12 @@ func (vm *VM) run() value.Value {
 			vm.globals[name.String()] = val
 		case compiler.OpGetGlobal:
 			i := vm.readByte()
-			name := vm.chunk.Constants[i]
+			name := vm.chunk.Constants[i].String()
 
-			val := vm.globals[name.String()]
+			val := vm.globals[name]
 
 			if val == nil {
-				vm.push(value.Nil{})
+				return vm.error(fmt.Sprint("Undefined variable ", name))
 			} else {
 				vm.push(val)
 			}
@@ -160,9 +162,22 @@ func (vm *VM) run() value.Value {
 			table := vm.peek().AsTable()
 
 			table.Insert(val)
+		case compiler.OpSetTable:
+			val := vm.pop()
+			key := vm.pop()
+			table := vm.peek().AsTable()
+
+			ok := table.Set(key, val)
+
+			if !ok {
+				return vm.error("Cannot set key <nil> in table.")
+			}
 		default:
-			vm.error(fmt.Sprint("Do not know how to perform: ", op))
-			return nil
+			return vm.error(fmt.Sprint("Do not know how to perform: ", op))
+		}
+
+		if !ok {
+			return value.Nil{}
 		}
 	}
 }
@@ -189,26 +204,30 @@ func (vm *VM) push(val value.Value) {
 	vm.stackSize += 1
 }
 
-func (vm *VM) arithmetic(name string, op func(float64, float64) float64) {
+func (vm *VM) arithmetic(name string, op func(float64, float64) float64) bool {
 	val2 := vm.pop()
 	val1 := vm.pop()
 
 	switch {
 	case val1.IsNumber() && val2.IsNumber():
 		vm.push(value.Number(op(val1.AsNumber(), val2.AsNumber())))
+		return true
 	default:
 		vm.error(fmt.Sprintf("Cannot %s two non-numbers", name))
+		return false
 	}
 }
 
-func (vm *VM) compare(compare func(float64, float64) bool) {
+func (vm *VM) compare(compare func(float64, float64) bool) bool {
 	val2 := vm.pop()
 	val1 := vm.pop()
 
 	if val1.IsNumber() && val2.IsNumber() {
 		vm.push(value.Boolean(compare(val1.AsNumber(), val2.AsNumber())))
+		return true
 	} else {
 		vm.error("Unable to compare two non-numbers")
+		return false
 	}
 }
 
@@ -234,9 +253,9 @@ func (vm *VM) next() compiler.Op {
 	return vm.chunk.Bytecode[vm.ip+1]
 }
 
-// todo: error handling
-func (vm *VM) error(message string) {
+func (vm *VM) error(message string) value.Value {
 	vm.err.Append(RuntimeError{message})
+	return value.Nil{}
 }
 
 type RuntimeError struct {
