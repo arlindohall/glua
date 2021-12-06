@@ -9,477 +9,593 @@ import (
 
 const DebugAst = true
 
-type Declaration interface {
-	EmitDeclaration(*compiler)
-	PrintTree()
+type Node interface {
+	Emit(compiler *compiler)
+	printTree(indent int)
+	assign(compiler *compiler) Node
+}
+
+func PrintTree(node *Node) {
+	(*node).printTree(0)
 }
 
 type GlobalDeclaration struct {
-	name       string
-	assignment Expression
+	name       Identifier
+	assignment *Node
 }
 
-func (gd GlobalDeclaration) EmitDeclaration(c *compiler) {
-	b := c.makeConstant(value.StringVal(gd.name))
-	if gd.assignment != nil {
-		gd.assignment.EmitExpression(c)
-		c.emitBytes(OpSetGlobal, b)
-		c.emitByte(OpPop)
+func (declaration GlobalDeclaration) Emit(compiler *compiler) {
+	b := compiler.makeConstant(value.StringVal(declaration.name))
+	if declaration.assignment != nil {
+		(*declaration.assignment).Emit(compiler)
+		compiler.emitBytes(OpSetGlobal, b)
+		compiler.emitByte(OpPop)
 	} else {
-		c.emitByte(OpNil)
-		c.emitBytes(OpSetGlobal, b)
-		c.emitByte(OpPop)
+		compiler.emitByte(OpNil)
+		compiler.emitBytes(OpSetGlobal, b)
+		compiler.emitByte(OpPop)
 	}
 }
 
-func (gd GlobalDeclaration) PrintTree() {
-	fmt.Fprintln(os.Stderr, "GlobalDeclaration")
-	printIndent(1)
-	fmt.Fprintln(os.Stderr, gd.name)
+func (declaration GlobalDeclaration) printTree(indent int) {
+	printIndent(indent, "GlobalDeclaration")
+	printIndent(indent+1, declaration.name)
 
-	if gd.assignment != nil {
-		gd.assignment.PrintTree(1)
+	if declaration.assignment != nil {
+		(*declaration.assignment).printTree(indent + 1)
 	}
 }
 
-type StatementDeclaration struct {
-	statement Statement
-}
-
-func (sd StatementDeclaration) EmitDeclaration(c *compiler) {
-	sd.statement.EmitStatement(c)
-}
-
-func (sd StatementDeclaration) PrintTree() {
-	fmt.Fprintln(os.Stderr, "Statement")
-	sd.statement.PrintTree(1)
-}
-
-type Statement interface {
-	EmitStatement(*compiler)
-	PrintTree(int)
+func (declaration GlobalDeclaration) assign(comp *compiler) Node {
+	// todo should we hook into this for global variables?
+	comp.error("Cannot assign to global variable declaration")
+	return declaration
 }
 
 type WhileStatement struct {
-	condition Expression
+	condition Node
 	body      BlockStatement
 }
 
-func (ws WhileStatement) EmitStatement(c *compiler) {
-	loopTo := c.chunkSize()
-	ws.condition.EmitExpression(c)
+func (statement WhileStatement) Emit(compiler *compiler) {
+	loopTo := compiler.chunkSize()
+	statement.condition.Emit(compiler)
 
-	jumpFrom := c.chunkSize()
-	c.emitJump(OpJumpIfFalse)
+	jumpFrom := compiler.chunkSize()
+	compiler.emitJump(OpJumpIfFalse)
 
-	ws.body.EmitStatement(c)
+	statement.body.Emit(compiler)
 
-	loopFrom := c.chunkSize()
-	c.emitJump(OpLoop)
-	jumpTo := c.chunkSize()
+	loopFrom := compiler.chunkSize()
+	compiler.emitJump(OpLoop)
+	jumpTo := compiler.chunkSize()
 
-	c.patchJump(loopFrom, loopTo)
-	c.patchJump(jumpFrom, jumpTo)
+	compiler.patchJump(loopFrom, loopTo)
+	compiler.patchJump(jumpFrom, jumpTo)
 }
 
-func (ws WhileStatement) PrintTree(indent int) {
-	fmt.Fprintln(os.Stderr, "While")
-	ws.condition.PrintTree(indent + 1)
+func (statement WhileStatement) printTree(indent int) {
+	printIndent(indent, "While")
+	statement.condition.printTree(indent + 1)
 
-	ws.body.PrintTree(indent + 1)
+	statement.body.printTree(indent + 1)
+}
+
+func (statement WhileStatement) assign(comp *compiler) Node {
+	comp.error("Cannot assign to while statement")
+	return statement
 }
 
 type BlockStatement struct {
-	statements []Statement
+	statements []Node
 }
 
 // todo: block scope
-func (bs BlockStatement) EmitStatement(c *compiler) {
-	for _, st := range bs.statements {
-		st.EmitStatement(c)
+func (statement BlockStatement) Emit(compiler *compiler) {
+	for _, st := range statement.statements {
+		st.Emit(compiler)
 	}
 }
 
-func (bs BlockStatement) PrintTree(indent int) {
-	printIndent(indent)
-	fmt.Fprintln(os.Stderr, "Block")
+func (statement BlockStatement) printTree(indent int) {
+	printIndent(indent, "Block")
 
-	for _, st := range bs.statements {
-		st.PrintTree(indent + 1)
+	for _, st := range statement.statements {
+		st.printTree(indent + 1)
 	}
+}
+
+func (statement BlockStatement) assign(comp *compiler) Node {
+	// todo should blocks return their last value and thus assign if it's a table?
+	comp.error("Cannot assign to block statement")
+	return statement
 }
 
 type AssertStatement struct {
-	value Expression
+	value Node
 }
 
-func (as AssertStatement) EmitStatement(c *compiler) {
-	as.value.EmitExpression(c)
-	c.emitByte(OpAssert)
+func (statement AssertStatement) Emit(compiler *compiler) {
+	statement.value.Emit(compiler)
+	compiler.emitByte(OpAssert)
 }
 
-func (as AssertStatement) PrintTree(indent int) {
-	printIndent(indent)
-	fmt.Fprintln(os.Stderr, "Assert")
-	as.value.PrintTree(indent + 1)
+func (statement AssertStatement) printTree(indent int) {
+	printIndent(indent, "Assert")
+	statement.value.printTree(indent + 1)
 }
 
-type ExpressionStatement struct {
-	value Expression
+func (statement AssertStatement) assign(comp *compiler) Node {
+	comp.error("Cannot assign to expression")
+	return statement
 }
 
-func (es ExpressionStatement) EmitStatement(c *compiler) {
-	es.value.EmitExpression(c)
-	c.emitByte(OpPop)
+type Expression struct {
+	expression Node
 }
 
-func (es ExpressionStatement) PrintTree(indent int) {
-	printIndent(indent)
-	fmt.Fprintln(os.Stderr, "Expression")
-	es.value.PrintTree(indent + 1)
+func (statement Expression) Emit(compiler *compiler) {
+	statement.expression.Emit(compiler)
+	compiler.emitByte(OpPop)
 }
 
-type Expression interface {
-	EmitExpression(*compiler)
-	PrintTree(int)
+func (statement Expression) printTree(indent int) {
+	printIndent(indent, "Expression")
+	statement.expression.printTree(indent + 1)
 }
 
-type Assignment struct {
-	name  string
-	value Expression
+func (statement Expression) assign(comp *compiler) Node {
+	comp.error("Cannot assign to expression")
+	return statement
 }
 
-func (ass Assignment) EmitExpression(c *compiler) {
-	ass.value.EmitExpression(c)
-
-	name := c.makeConstant(value.StringVal(ass.name))
-	c.emitBytes(OpSetGlobal, name)
+type VariableAssignment struct {
+	name  Identifier
+	value Node
 }
 
-func (ass Assignment) PrintTree(indent int) {
-	printIndent(indent)
-	fmt.Fprintln(os.Stderr, "Assign")
-	printIndent(indent + 1)
-	fmt.Fprintln(os.Stderr, ass.name)
-	ass.value.PrintTree(indent + 1)
+func (assignment VariableAssignment) Emit(compiler *compiler) {
+	assignment.value.Emit(compiler)
+
+	name := compiler.makeConstant(value.StringVal(assignment.name))
+	compiler.emitBytes(OpSetGlobal, name)
+}
+
+func (assignment VariableAssignment) printTree(indent int) {
+	printIndent(indent, "Assign")
+	printIndent(indent+1, assignment.name)
+	assignment.value.printTree(indent + 1)
+}
+
+func (assignment VariableAssignment) assign(comp *compiler) Node {
+	target := assignment.name
+	intermediate := assignment.value
+
+	value := intermediate.assign(comp)
+
+	return VariableAssignment{
+		target,
+		value,
+	}
+}
+
+type TableAssignment struct {
+	table     Node
+	attribute Node
+	value     Node
+}
+
+func (assignment TableAssignment) Emit(compiler *compiler) {
+	assignment.table.Emit(compiler)
+	assignment.attribute.Emit(compiler)
+	assignment.value.Emit(compiler)
+	compiler.emitByte(OpSetTable)
+}
+
+func (assignment TableAssignment) printTree(indent int) {
+	printIndent(indent, "AssignTable")
+	assignment.table.printTree(indent + 1)
+	assignment.attribute.printTree(indent + 1)
+	assignment.value.printTree(indent + 1)
+}
+
+func (assignment TableAssignment) assign(comp *compiler) Node {
+	comp.error("Cannot assign to assignment (yet)")
+	return assignment
+}
+
+type TableAccessor struct {
+	table     Node
+	attribute Node
+}
+
+func (accessor TableAccessor) Emit(compiler *compiler) {
+	accessor.table.Emit(compiler)
+	accessor.attribute.Emit(compiler)
+
+	compiler.emitByte(OpGetTable)
+}
+
+func (accessor TableAccessor) printTree(indent int) {
+	printIndent(indent, "TableGet")
+	accessor.table.printTree(indent + 1)
+	accessor.attribute.printTree(indent + 1)
+}
+
+func (accessor TableAccessor) assign(comp *compiler) Node {
+	return TableAssignment{
+		table:     accessor.table,
+		attribute: accessor.attribute,
+		value:     comp.expression(),
+	}
 }
 
 type LogicOr struct {
-	value LogicAnd
-	or    []LogicAnd
+	value Node
+	or    []Node
 }
 
 // todo: short circuit or with a jump
-func (lo LogicOr) EmitExpression(c *compiler) {
-	lo.value.EmitExpression(c)
-	for _, la := range lo.or {
-		la.EmitExpression(c)
-		c.emitByte(OpOr)
+func (logicOr LogicOr) Emit(compiler *compiler) {
+	logicOr.value.Emit(compiler)
+	for _, la := range logicOr.or {
+		la.Emit(compiler)
+		compiler.emitByte(OpOr)
 	}
 }
 
-func (lo LogicOr) PrintTree(indent int) {
-	if len(lo.or) == 0 {
-		lo.value.PrintTree(indent)
+func (logicOr LogicOr) printTree(indent int) {
+	if len(logicOr.or) == 0 {
+		logicOr.value.printTree(indent)
 		return
 	}
 
-	printIndent(indent)
-	fmt.Fprintln(os.Stderr, "Or")
-	lo.value.PrintTree(indent + 1)
-	for _, or := range lo.or {
-		or.PrintTree(indent + 1)
+	printIndent(indent, "Or")
+	logicOr.value.printTree(indent + 1)
+	for _, or := range logicOr.or {
+		or.printTree(indent + 1)
 	}
+}
+
+func (logicOr LogicOr) assign(comp *compiler) Node {
+	comp.error("Cannot assign to logical or")
+	return logicOr
 }
 
 type LogicAnd struct {
-	value Comparison
-	and   []Comparison
+	value Node
+	and   []Node
 }
 
-func (la LogicAnd) EmitExpression(c *compiler) {
-	la.value.EmitExpression(c)
-	for _, comp := range la.and {
-		comp.EmitExpression(c)
-		c.emitByte(OpAnd)
+func (logicAnd LogicAnd) Emit(compiler *compiler) {
+	logicAnd.value.Emit(compiler)
+	for _, comp := range logicAnd.and {
+		comp.Emit(compiler)
+		compiler.emitByte(OpAnd)
 	}
 }
 
-func (la LogicAnd) PrintTree(indent int) {
-	if len(la.and) == 0 {
-		la.value.PrintTree(indent)
+func (logicAnd LogicAnd) printTree(indent int) {
+	if len(logicAnd.and) == 0 {
+		logicAnd.value.printTree(indent)
 		return
 	}
 
-	printIndent(indent)
-	fmt.Fprintln(os.Stderr, "And")
-	la.value.PrintTree(indent + 1)
-	for _, comp := range la.and {
-		comp.PrintTree(indent + 1)
+	printIndent(indent, "And")
+	logicAnd.value.printTree(indent + 1)
+	for _, comp := range logicAnd.and {
+		comp.printTree(indent + 1)
 	}
 }
 
+func (logicAnd LogicAnd) assign(comp *compiler) Node {
+	comp.error("Cannot assign to logical and")
+	return logicAnd
+}
+
 type Comparison struct {
-	term  Term
+	term  Node
 	items []ComparisonItem
 }
 
 // todo: could return second rather than pop but that would not
 // be compatible with Lua
-func (comp Comparison) EmitExpression(c *compiler) {
-	comp.term.EmitExpression(c)
-	for _, ci := range comp.items {
-		ci.term.EmitExpression(c)
+func (comparison Comparison) Emit(compiler *compiler) {
+	comparison.term.Emit(compiler)
+	for _, ci := range comparison.items {
+		ci.term.Emit(compiler)
 		switch ci.compareOp {
 		case scanner.TokenEqualEqual:
-			c.emitByte(OpEquals)
+			compiler.emitByte(OpEquals)
 		case scanner.TokenLess:
-			c.emitByte(OpLessThan)
+			compiler.emitByte(OpLessThan)
 		default:
-			c.error(fmt.Sprint("Unknown comparator operator: ", ci.compareOp))
+			compiler.error(fmt.Sprint("Unknown comparator operator: ", ci.compareOp))
 		}
 	}
 }
 
-func (comp Comparison) PrintTree(indent int) {
-	if len(comp.items) == 0 {
-		comp.term.PrintTree(indent)
+func (comparison Comparison) printTree(indent int) {
+	if len(comparison.items) == 0 {
+		comparison.term.printTree(indent)
 		return
 	}
 
-	printIndent(indent)
-	fmt.Fprintln(os.Stderr, comp.items[0].compareOp)
-	comp.term.PrintTree(indent + 1)
+	printIndent(indent, comparison.items[0].compareOp)
+	comparison.term.printTree(indent + 1)
 	Comparison{
-		comp.items[0].term,
-		comp.items[1:],
-	}.PrintTree(indent + 1)
+		comparison.items[0].term,
+		comparison.items[1:],
+	}.printTree(indent + 1)
+}
+
+func (comparison Comparison) assign(comp *compiler) Node {
+	comp.error("Cannot assign to comparison")
+	return comparison
 }
 
 type ComparisonItem struct {
 	compareOp scanner.TokenType
-	term      Term
+	term      Node
 }
 
 type Term struct {
-	factor Factor
+	factor Node
 	items  []TermItem
 }
 
-func (t Term) EmitExpression(c *compiler) {
-	t.factor.EmitExpression(c)
-	for _, ti := range t.items {
-		ti.factor.EmitExpression(c)
+func (term Term) Emit(compiler *compiler) {
+	term.factor.Emit(compiler)
+	for _, ti := range term.items {
+		ti.factor.Emit(compiler)
 		switch ti.termOp {
 		case scanner.TokenPlus:
-			c.emitByte(OpAdd)
+			compiler.emitByte(OpAdd)
 		case scanner.TokenMinus:
-			c.emitByte(OpSubtract)
+			compiler.emitByte(OpSubtract)
 		default:
-			c.error(fmt.Sprint("Unknown term operator: ", ti.termOp))
+			compiler.error(fmt.Sprint("Unknown term operator: ", ti.termOp))
 		}
 	}
 }
 
-func (t Term) PrintTree(indent int) {
-	if len(t.items) == 0 {
-		t.factor.PrintTree(indent)
+func (term Term) printTree(indent int) {
+	if len(term.items) == 0 {
+		term.factor.printTree(indent)
 		return
 	}
 
-	printIndent(indent)
-	fmt.Fprintln(os.Stderr, t.items[0].termOp)
-	t.factor.PrintTree(indent + 1)
+	printIndent(indent, term.items[0].termOp)
+	term.factor.printTree(indent + 1)
 
 	Term{
-		t.items[0].factor,
-		t.items[1:],
-	}.PrintTree(indent + 1)
+		term.items[0].factor,
+		term.items[1:],
+	}.printTree(indent + 1)
+}
+
+func (term Term) assign(comp *compiler) Node {
+	comp.error("Cannot assign to term")
+	return term
 }
 
 type TermItem struct {
 	termOp scanner.TokenType
-	factor Factor
+	factor Node
 }
 
 type Factor struct {
-	unary Unary
+	unary Node
 	items []FactorItem
 }
 
-func (f Factor) EmitExpression(c *compiler) {
-	f.unary.EmitUnary(c)
-	for _, u := range f.items {
-		u.unary.EmitUnary(c)
+func (factor Factor) Emit(compiler *compiler) {
+	factor.unary.Emit(compiler)
+	for _, u := range factor.items {
+		u.unary.Emit(compiler)
 		switch u.factorOp {
 		case scanner.TokenStar:
-			c.emitByte(OpMult)
+			compiler.emitByte(OpMult)
 		case scanner.TokenSlash:
-			c.emitByte(OpDivide)
+			compiler.emitByte(OpDivide)
 		default:
-			c.error(fmt.Sprint("Unkown factor operator: ", u.factorOp))
+			compiler.error(fmt.Sprint("Unkown factor operator: ", u.factorOp))
 		}
 	}
 }
 
-func (f Factor) PrintTree(indent int) {
-	if len(f.items) == 0 {
-		f.unary.PrintTree(indent)
+func (factor Factor) printTree(indent int) {
+	if len(factor.items) == 0 {
+		factor.unary.printTree(indent)
 		return
 	}
 
-	printIndent(indent)
-	fmt.Fprintln(os.Stderr, f.items[0].factorOp)
-	f.unary.PrintTree(indent + 1)
+	printIndent(indent, factor.items[0].factorOp)
+	factor.unary.printTree(indent + 1)
 
 	Factor{
-		f.items[0].unary,
-		f.items[1:],
-	}.PrintTree(indent + 1)
+		factor.items[0].unary,
+		factor.items[1:],
+	}.printTree(indent + 1)
+}
+
+func (factor Factor) assign(comp *compiler) Node {
+	comp.error("Cannot assign to factor")
+	return factor
 }
 
 type FactorItem struct {
 	factorOp scanner.TokenType
-	unary    Unary
-}
-
-type Unary interface {
-	EmitUnary(*compiler)
-	PrintTree(int)
+	unary    Node
 }
 
 type NegateUnary struct {
-	unary Unary
+	unary Node
 }
 
-func (nu NegateUnary) EmitUnary(c *compiler) {
-	nu.unary.EmitUnary(c)
-	c.emitByte(OpNegate)
+func (unary NegateUnary) Emit(compiler *compiler) {
+	unary.unary.Emit(compiler)
+	compiler.emitByte(OpNegate)
 }
 
-func (nu NegateUnary) PrintTree(indent int) {
-	printIndent(indent)
-	fmt.Fprintln(os.Stderr, "Negate")
-	nu.unary.PrintTree(indent + 1)
+func (unary NegateUnary) printTree(indent int) {
+	printIndent(indent, "Negate")
+	unary.unary.printTree(indent + 1)
+}
+
+func (unary NegateUnary) assign(comp *compiler) Node {
+	comp.error("Cannot assign to unary")
+	return unary
 }
 
 type NotUnary struct {
-	unary Unary
+	unary Node
 }
 
-func (nu NotUnary) EmitUnary(c *compiler) {
-	nu.unary.EmitUnary(c)
-	c.emitByte(OpNot)
+func (unary NotUnary) Emit(compiler *compiler) {
+	unary.unary.Emit(compiler)
+	compiler.emitByte(OpNot)
 }
 
-func (nu NotUnary) PrintTree(indent int) {
-	printIndent(indent)
-	fmt.Fprintln(os.Stderr, "Not")
-	nu.unary.PrintTree(indent + 1)
+func (unary NotUnary) printTree(indent int) {
+	printIndent(indent, "Not")
+	unary.unary.printTree(indent + 1)
 }
 
-type BaseUnary struct {
-	exponent Exponent
+func (unary NotUnary) assign(comp *compiler) Node {
+	comp.error("Cannot assign to unary")
+	return unary
 }
 
-func (nu BaseUnary) EmitUnary(c *compiler) {
-	nu.exponent.base.EmitPrimary(c)
+type Exponent struct {
+	base Node
+	exp  *Node
+}
 
-	if nu.exponent.exp != nil {
-		nu.exponent.exp.EmitPrimary(c)
+func (exponent Exponent) Emit(compiler *compiler) {
+	exponent.base.Emit(compiler)
+
+	if exponent.exp != nil {
+		(*exponent.exp).Emit(compiler)
 		panic("todo exponentiation")
 	}
 }
 
-func (nu BaseUnary) PrintTree(indent int) {
-	if nu.exponent.exp == nil {
-		nu.exponent.base.PrintTree(indent)
+func (exponent Exponent) printTree(indent int) {
+	if exponent.exp == nil {
+		exponent.base.printTree(indent)
 	} else {
-		printIndent(indent)
-		fmt.Fprintln(os.Stderr, "Exp")
-		nu.exponent.base.PrintTree(indent + 1)
-		nu.exponent.exp.PrintTree(indent + 1)
+		printIndent(indent, "Exp")
+		exponent.base.printTree(indent + 1)
+		(*exponent.exp).printTree(indent + 1)
 	}
 }
 
-type Exponent struct {
-	base Primary
-	exp  Primary
+func (exponent Exponent) assign(comp *compiler) Node {
+	comp.error("Cannot assign to exponent")
+	return exponent
 }
 
-type Primary interface {
-	EmitPrimary(*compiler)
-	PrintTree(int)
+type Call struct {
+	base      Node
+	accessors []Identifier
 }
 
-type ValuePrimary struct {
+func (call Call) Emit(compiler *compiler) {
+	fmt.Println(call.base, call.accessors)
+	panic("emit call")
+}
+
+func (call Call) printTree(indent int) {
+	panic("print call")
+}
+
+func (call Call) assign(comp *compiler) Node {
+	comp.error("Cannot assign to function call")
+	return call
+}
+
+type LiteralPrimary struct {
 	value value.Value
 }
 
-func (vp ValuePrimary) EmitPrimary(c *compiler) {
-	b := c.makeConstant(vp.value)
-	c.emitBytes(OpConstant, b)
+func (primary LiteralPrimary) Emit(compiler *compiler) {
+	b := compiler.makeConstant(primary.value)
+	compiler.emitBytes(OpConstant, b)
 }
 
-func (vp ValuePrimary) PrintTree(indent int) {
-	printIndent(indent)
-	fmt.Fprintln(os.Stderr, vp.value)
+func (primary LiteralPrimary) printTree(indent int) {
+	printIndent(indent, primary.value)
 }
 
-func NumberPrimary(f float64) ValuePrimary {
-	return ValuePrimary{
+func (primary LiteralPrimary) assign(comp *compiler) Node {
+	comp.error("Cannot assign to literal")
+	return primary
+}
+
+func NumberPrimary(f float64) LiteralPrimary {
+	return LiteralPrimary{
 		value: value.Number(f),
 	}
 }
 
-func BooleanPrimary(b bool) ValuePrimary {
-	return ValuePrimary{
+func BooleanPrimary(b bool) LiteralPrimary {
+	return LiteralPrimary{
 		value: value.Boolean(b),
 	}
 }
 
-func StringPrimary(s string) ValuePrimary {
-	return ValuePrimary{
+func StringPrimary(s string) LiteralPrimary {
+	return LiteralPrimary{
 		value: value.StringVal(s),
 	}
 }
 
-func NilPrimary() ValuePrimary {
-	return ValuePrimary{
+func NilPrimary() LiteralPrimary {
+	return LiteralPrimary{
 		value: value.Nil{},
 	}
 }
 
-type GlobalPrimary string
-
-func (gp GlobalPrimary) EmitPrimary(c *compiler) {
-	constant := c.makeConstant(value.StringVal(string(gp)))
-	c.emitBytes(OpGetGlobal, constant)
+type VariablePrimary struct {
+	// scope VariableScope (Global|Local)
+	name Identifier
 }
 
-func (gp GlobalPrimary) PrintTree(indent int) {
-	printIndent(indent)
-	fmt.Fprintf(os.Stderr, "Global/%s\n", string(gp))
+func (primary VariablePrimary) Emit(compiler *compiler) {
+	constant := compiler.makeConstant(value.StringVal(string(primary.name)))
+	compiler.emitBytes(OpGetGlobal, constant)
+}
+
+func (primary VariablePrimary) printTree(indent int) {
+	printIndent(indent, fmt.Sprintf("Global/%s", string(primary.name)))
+}
+
+func (primary VariablePrimary) assign(comp *compiler) Node {
+	return VariableAssignment{
+		name:  primary.name,
+		value: comp.expression(),
+	}
 }
 
 type TableLiteral struct {
-	entries []Pair
+	entries []Node
 }
 
-func (tl TableLiteral) EmitPrimary(c *compiler) {
-	c.emitByte(OpCreateTable)
+func (literal TableLiteral) Emit(compiler *compiler) {
+	compiler.emitByte(OpCreateTable)
 
-	for _, ent := range mapPairs(tl.entries) {
-		ent.EmitPair(c)
+	for _, ent := range mapPairs(literal.entries) {
+		ent.Emit(compiler)
 	}
 
-	for _, ent := range valuePairs(tl.entries) {
-		ent.EmitPair(c)
+	for _, ent := range valuePairs(literal.entries) {
+		ent.Emit(compiler)
 	}
 }
 
-func valuePairs(pairs []Pair) []Pair {
-	var mapPairs []Pair
+func valuePairs(pairs []Node) []Node {
+	var mapPairs []Node
 
 	for _, p := range pairs {
 		switch p.(type) {
@@ -491,8 +607,8 @@ func valuePairs(pairs []Pair) []Pair {
 	return mapPairs
 }
 
-func mapPairs(pairs []Pair) []Pair {
-	var mapPairs []Pair
+func mapPairs(pairs []Node) []Node {
+	var mapPairs []Node
 
 	for _, p := range pairs {
 		switch p.(type) {
@@ -505,73 +621,87 @@ func mapPairs(pairs []Pair) []Pair {
 	return mapPairs
 }
 
-func (tl TableLiteral) PrintTree(indent int) {
-	printIndent(indent)
-	fmt.Fprintln(os.Stderr, "Table")
+func (literal TableLiteral) printTree(indent int) {
+	printIndent(indent, "Table")
 
-	for _, entry := range tl.entries {
-		entry.PrintTree(indent + 1)
+	for _, entry := range literal.entries {
+		entry.printTree(indent + 1)
 	}
 }
 
-type Pair interface {
-	EmitPair(c *compiler)
-	PrintTree(indent int)
+func (literal TableLiteral) assign(comp *compiler) Node {
+	comp.error("Cannot assign to table literal")
+	return literal
 }
 
 type Value struct {
-	value Expression
+	value Node
 }
 
-func (v Value) EmitPair(c *compiler) {
-	v.value.EmitExpression(c)
-	c.emitByte(OpInsertTable)
+func (val Value) Emit(compiler *compiler) {
+	val.value.Emit(compiler)
+	compiler.emitByte(OpInsertTable)
 }
 
-func (v Value) PrintTree(indent int) {
-	printIndent(indent)
-	fmt.Fprintln(os.Stderr, "Value")
-	v.value.PrintTree(indent + 1)
+func (val Value) printTree(indent int) {
+	printIndent(indent, "Value")
+	val.value.printTree(indent + 1)
+}
+
+func (val Value) assign(comp *compiler) Node {
+	comp.error("Cannot assign to table value")
+	return val
 }
 
 type StringPair struct {
-	key   Primary
-	value Expression
+	key   Node
+	value Node
 }
 
-func (sp StringPair) EmitPair(c *compiler) {
-	sp.key.EmitPrimary(c)
-	sp.value.EmitExpression(c)
-	c.emitByte(OpSetTable)
+func (pair StringPair) Emit(compiler *compiler) {
+	pair.key.Emit(compiler)
+	pair.value.Emit(compiler)
+	compiler.emitByte(OpSetTable)
 }
 
-func (sp StringPair) PrintTree(indent int) {
-	printIndent(indent)
-	fmt.Fprintln(os.Stderr, "StringPair")
-	sp.key.PrintTree(indent + 1)
-	sp.value.PrintTree(indent + 1)
+func (pair StringPair) printTree(indent int) {
+	printIndent(indent, "StringPair")
+	pair.key.printTree(indent + 1)
+	pair.value.printTree(indent + 1)
+}
+
+func (pair StringPair) assign(comp *compiler) Node {
+	comp.error("Cannot assign to table literal pair")
+	return pair
 }
 
 type LiteralPair struct {
-	key   Expression
-	value Expression
+	key   Node
+	value Node
 }
 
-func (lp LiteralPair) EmitPair(c *compiler) {
-	lp.key.EmitExpression(c)
-	lp.value.EmitExpression(c)
-	c.emitByte(OpSetTable)
+func (pair LiteralPair) Emit(compiler *compiler) {
+	pair.key.Emit(compiler)
+	pair.value.Emit(compiler)
+	compiler.emitByte(OpSetTable)
 }
 
-func (lp LiteralPair) PrintTree(indent int) {
-	printIndent(indent)
-	fmt.Fprintln(os.Stderr, "LiteralPair")
-	lp.key.PrintTree(indent + 1)
-	lp.value.PrintTree(indent + 1)
+func (pair LiteralPair) printTree(indent int) {
+	printIndent(indent, "LiteralPair")
+	pair.key.printTree(indent + 1)
+	pair.value.printTree(indent + 1)
 }
 
-func printIndent(indent int) {
+func (pair LiteralPair) assign(comp *compiler) Node {
+	comp.error("Cannot assign to table literal pair")
+	return pair
+}
+
+type Identifier string
+
+func printIndent(indent int, node interface{}) {
 	for i := 0; i < indent; i++ {
 		fmt.Fprint(os.Stderr, "  ")
 	}
+	fmt.Fprintln(os.Stderr, node)
 }

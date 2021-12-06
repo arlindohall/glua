@@ -119,3 +119,21 @@ func TestTableLiteralPairArgs(t *testing.T) {
 
 	expectNoErrors(t, text)
 }
+
+func TestGetTableAttribute(t *testing.T) {
+	text := `x = {a=1}
+	assert x.a == 1
+	assert x.b == nil
+	`
+
+	expectNoErrors(t, text)
+}
+
+func TestSetTableAttribute(t *testing.T) {
+	text := `x = {}
+	x.a = 1
+	assert x.a == 1
+	`
+
+	expectNoErrors(t, text)
+}

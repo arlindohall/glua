@@ -17,6 +17,7 @@ const (
 	OpDivide
 	OpEquals
 	OpGetGlobal
+	OpGetTable
 	OpJumpIfFalse
 	OpLessThan
 	OpLoop
@@ -75,318 +76,390 @@ func Compile(text []scanner.Token, mode ReturnMode) (Function, glerror.GluaError
 	return compiler.end()
 }
 
-func (comp *compiler) compile() {
-	for comp.current().Type != scanner.TokenEof {
-		decl := comp.declaration()
+func (compiler *compiler) compile() {
+	for compiler.current().Type != scanner.TokenEof {
+		decl := compiler.declaration()
 		if DebugAst {
-			decl.PrintTree()
+			var node Node = decl
+			PrintTree(&node)
 		}
-		decl.EmitDeclaration(comp)
+		decl.Emit(compiler)
 	}
 }
 
-func (comp *compiler) peek() scanner.Token {
-	if comp.curr+1 >= len(comp.text) {
+func (compiler *compiler) peek() scanner.Token {
+	if compiler.curr+1 >= len(compiler.text) {
 		return scanner.Token{
 			Type: scanner.TokenEof,
 			Text: "",
 		}
 	}
 
-	return comp.text[comp.curr+1]
+	return compiler.text[compiler.curr+1]
 }
 
-func (comp *compiler) current() scanner.Token {
-	if comp.curr >= len(comp.text) {
+func (compiler *compiler) current() scanner.Token {
+	if compiler.curr >= len(compiler.text) {
 		return scanner.Token{
 			Type: scanner.TokenEof,
 			Text: "",
 		}
 	}
 
-	return comp.text[comp.curr]
+	return compiler.text[compiler.curr]
 }
 
-func (comp *compiler) declaration() Declaration {
-	var state Declaration
-	if comp.current().Type == scanner.TokenGlobal {
-		state = comp.global()
+func (compiler *compiler) declaration() Node {
+	var state Node
+	if compiler.current().Type == scanner.TokenGlobal {
+		state = compiler.global()
 	} else {
-		state = StatementDeclaration{comp.statement()}
+		state = compiler.statement()
 	}
 
 	// Lua allows semicolons but they are not required
-	if comp.current().Type == scanner.TokenSemicolon {
-		comp.consume(scanner.TokenSemicolon)
+	if compiler.current().Type == scanner.TokenSemicolon {
+		compiler.consume(scanner.TokenSemicolon)
 	}
 
 	return state
 }
 
-func (comp *compiler) global() Declaration {
-	comp.advance()
-	decl := GlobalDeclaration{comp.current().Text, nil}
+func (compiler *compiler) global() Node {
+	compiler.advance()
+	decl := GlobalDeclaration{Identifier(compiler.identifier()), nil}
 
-	comp.advance()
-	if comp.current().Type == scanner.TokenEqual {
-		comp.advance()
-		decl.assignment = comp.expression()
+	if compiler.current().Type == scanner.TokenEqual {
+		compiler.consume(scanner.TokenEqual)
+		var assignment = compiler.assignment()
+		decl.assignment = &assignment
 	}
 
 	return decl
 }
 
-func (comp *compiler) statement() Statement {
-	switch comp.current().Type {
+func (compiler *compiler) statement() Node {
+	switch compiler.current().Type {
 	case scanner.TokenAssert:
-		comp.advance()
+		compiler.advance()
 		return AssertStatement{
-			value: comp.expression(),
+			value: compiler.expression(),
 		}
 	case scanner.TokenWhile:
-		return comp.whileStatement()
+		return compiler.whileStatement()
 	default:
-		return ExpressionStatement{comp.expression()}
+		return Expression{compiler.expression()}
 	}
 }
 
-func (comp *compiler) block() BlockStatement {
+func (compiler *compiler) block() BlockStatement {
 	var block BlockStatement
 
-	if comp.current().Type != scanner.TokenDo {
-		comp.advance()
-		block.statements = append(block.statements, comp.statement())
+	if compiler.current().Type != scanner.TokenDo {
+		compiler.advance()
+		block.statements = append(block.statements, compiler.statement())
 		return block
 	}
 
-	comp.consume(scanner.TokenDo)
+	compiler.consume(scanner.TokenDo)
 
-	for comp.current().Type != scanner.TokenEnd {
-		block.statements = append(block.statements, comp.statement())
+	for compiler.current().Type != scanner.TokenEnd {
+		block.statements = append(block.statements, compiler.statement())
 	}
 
-	comp.consume(scanner.TokenEnd)
+	compiler.consume(scanner.TokenEnd)
 
 	return block
 }
 
-func (comp *compiler) whileStatement() Statement {
-	comp.advance()
+func (compiler *compiler) whileStatement() Node {
+	compiler.consume(scanner.TokenWhile)
 
 	return WhileStatement{
-		comp.expression(),
-		comp.block(),
+		compiler.expression(),
+		compiler.block(),
 	}
 }
 
-func (comp *compiler) expression() Expression {
-	return comp.assignment()
+func (compiler *compiler) expression() Node {
+	return compiler.assignment()
 }
 
-func (comp *compiler) assignment() Expression {
-	if comp.current().Type == scanner.TokenIdentifier && comp.peek().Type == scanner.TokenEqual {
-		name := comp.current().Text
-		comp.advance()
-		comp.advance()
-
-		return Assignment{
-			name,
-			comp.expression(),
-		}
+func (compiler *compiler) assignment() Node {
+	logicOr := compiler.logicOr()
+	if compiler.current().Type == scanner.TokenEqual {
+		compiler.consume(scanner.TokenEqual)
+		return logicOr.assign(compiler)
 	} else {
-		return comp.logicOr()
+		return logicOr
 	}
 }
 
-func (comp *compiler) logicOr() LogicOr {
-	lor := LogicOr{comp.logicAnd(), nil}
+func (compiler *compiler) identifier() Identifier {
+	ident := compiler.current().Text
+	compiler.consume(scanner.TokenIdentifier)
+	return Identifier(ident)
+}
+
+func (compiler *compiler) logicOr() Node {
+	node := compiler.logicAnd()
+
+	if compiler.current().Type != scanner.TokenOr {
+		return node
+	}
+
+	lor := LogicOr{node, nil}
 
 	for {
-		if comp.current().Type == scanner.TokenOr {
-			comp.advance()
-			lor.or = append(lor.or, comp.logicAnd())
+		if compiler.current().Type == scanner.TokenOr {
+			compiler.advance()
+			lor.or = append(lor.or, compiler.logicAnd())
 		} else {
-			return lor
+			return node
 		}
 	}
 }
 
-func (comp *compiler) logicAnd() LogicAnd {
-	land := LogicAnd{comp.comparison(), nil}
+func (compiler *compiler) logicAnd() Node {
+	node := compiler.comparison()
+
+	if compiler.current().Type != scanner.TokenAnd {
+		return node
+	}
+
+	land := LogicAnd{node, nil}
 
 	for {
-		if comp.current().Type == scanner.TokenAnd {
-			comp.advance()
-			land.and = append(land.and, comp.comparison())
+		if compiler.current().Type == scanner.TokenAnd {
+			compiler.advance()
+			land.and = append(land.and, compiler.comparison())
 		} else {
 			return land
 		}
 	}
 }
 
-func (comp *compiler) comparison() Comparison {
-	compare := Comparison{comp.term(), nil}
+func (compiler *compiler) comparison() Node {
+	term := compiler.term()
 
-	for {
-		token := comp.current().Type
-		switch token {
-		case scanner.TokenLess, scanner.TokenGreater, scanner.TokenLessEqual, scanner.TokenGreaterEqual, scanner.TokenTildeEqual, scanner.TokenEqualEqual:
-			comp.advance()
-			compItem := ComparisonItem{
-				term:      comp.term(),
-				compareOp: token,
-			}
-			compare.items = append(compare.items, compItem)
-		default:
-			return compare
-		}
-	}
-}
-
-func (comp *compiler) term() Term {
-	term := Term{comp.factor(), nil}
-
-	for {
-		token := comp.current().Type
-		switch token {
-		case scanner.TokenMinus, scanner.TokenPlus:
-			comp.advance()
-			termItem := TermItem{
-				factor: comp.factor(),
-				termOp: token,
-			}
-			term.items = append(term.items, termItem)
-		default:
-			return term
-		}
-	}
-}
-
-func (comp *compiler) factor() Factor {
-	factor := Factor{comp.unary(), nil}
-
-	for {
-		token := comp.current().Type
-		switch token {
-		case scanner.TokenStar, scanner.TokenSlash:
-			comp.advance()
-			factorItem := FactorItem{
-				unary:    comp.unary(),
-				factorOp: token,
-			}
-			factor.items = append(factor.items, factorItem)
-		default:
-			return factor
-		}
+	if !compiler.isComparison() {
+		return term
 	}
 
+	compare := Comparison{term, nil}
+
+	for compiler.isComparison() {
+		token := compiler.current().Type
+		compiler.advance()
+		compItem := ComparisonItem{
+			term:      compiler.term(),
+			compareOp: token,
+		}
+		compare.items = append(compare.items, compItem)
+	}
+
+	return compare
 }
 
-func (comp *compiler) unary() Unary {
-	switch comp.current().Type {
-	case scanner.TokenMinus:
-		comp.advance()
-		return NegateUnary{comp.unary()}
-	case scanner.TokenBang:
-		comp.advance()
-		return NotUnary{comp.unary()}
+func (compiler *compiler) isComparison() bool {
+	switch compiler.current().Type {
+	case scanner.TokenLess, scanner.TokenGreater, scanner.TokenLessEqual,
+		scanner.TokenGreaterEqual, scanner.TokenTildeEqual, scanner.TokenEqualEqual:
+		return true
 	default:
-		return BaseUnary{comp.exponent()}
+		return false
 	}
 }
 
-func (comp *compiler) exponent() Exponent {
-	if comp.current().Type == scanner.TokenCaret {
-		comp.advance()
-		return Exponent{comp.primary(), nil}
+func (compiler *compiler) term() Node {
+	factor := compiler.factor()
+
+	if !compiler.isTerm() {
+		return factor
+	}
+
+	term := Term{factor, nil}
+
+	for compiler.isTerm() {
+		token := compiler.current().Type
+		compiler.advance()
+		termItem := TermItem{
+			factor: compiler.factor(),
+			termOp: token,
+		}
+		term.items = append(term.items, termItem)
+	}
+
+	return term
+}
+
+func (compiler *compiler) isTerm() bool {
+	token := compiler.current().Type
+	switch token {
+	case scanner.TokenMinus, scanner.TokenPlus:
+		return true
+	default:
+		return false
+	}
+}
+
+func (compiler *compiler) factor() Node {
+	unary := compiler.unary()
+
+	if !compiler.isFactor() {
+		return unary
+	}
+
+	factor := Factor{unary, nil}
+
+	for compiler.isFactor() {
+		token := compiler.current().Type
+		compiler.advance()
+		factorItem := FactorItem{
+			unary:    compiler.unary(),
+			factorOp: token,
+		}
+		factor.items = append(factor.items, factorItem)
+	}
+
+	return factor
+}
+
+func (compiler *compiler) isFactor() bool {
+	token := compiler.current().Type
+	switch token {
+	case scanner.TokenStar, scanner.TokenSlash:
+		return true
+	default:
+		return false
+	}
+}
+
+func (compiler *compiler) unary() Node {
+	switch compiler.current().Type {
+	case scanner.TokenMinus:
+		compiler.advance()
+		return NegateUnary{compiler.unary()}
+	case scanner.TokenBang:
+		compiler.advance()
+		return NotUnary{compiler.unary()}
+	default:
+		return compiler.exponent()
+	}
+}
+
+func (compiler *compiler) exponent() Node {
+	call := compiler.call()
+	if compiler.current().Type == scanner.TokenCaret {
+		compiler.consume(scanner.TokenCaret)
+		exp := compiler.call()
+		return Exponent{call, &exp}
 	} else {
-		return Exponent{comp.primary(), nil}
+		return call
 	}
 }
 
-func (comp *compiler) primary() Primary {
-	switch comp.current().Type {
+func (compiler *compiler) call() Node {
+	primary := compiler.primary()
+
+	for compiler.current().Type == scanner.TokenDot {
+		compiler.consume(scanner.TokenDot)
+
+		// todo: get by any value not just string using x[y] notation
+		attribute := compiler.identifier()
+
+		primary = TableAccessor{
+			primary,
+			StringPrimary(string(attribute)),
+		}
+	}
+
+	return primary
+}
+
+func (compiler *compiler) primary() Node {
+	switch compiler.current().Type {
 	case scanner.TokenTrue:
-		comp.advance()
+		compiler.advance()
 		return BooleanPrimary(true)
 	case scanner.TokenFalse:
-		comp.advance()
+		compiler.advance()
 		return BooleanPrimary(false)
 	case scanner.TokenNumber:
 		flt, err := strconv.ParseFloat(
-			comp.current().Text,
+			compiler.current().Text,
 			64,
 		)
 
 		if err != nil {
-			comp.error(fmt.Sprint("Cannot parse number: ", comp.current().Text))
+			compiler.error(fmt.Sprint("Cannot parse number: ", compiler.current().Text))
 		}
 
-		comp.advance()
+		compiler.advance()
 		return NumberPrimary(flt)
 	case scanner.TokenString:
-		str := StringPrimary(comp.current().Text)
-		comp.advance()
+		str := StringPrimary(compiler.current().Text)
+		compiler.advance()
 		return str
 	case scanner.TokenNil:
 		n := NilPrimary()
-		comp.advance()
+		compiler.advance()
 		return n
 	case scanner.TokenIdentifier:
-		return comp.variable()
+		return compiler.variable()
 	case scanner.TokenLeftBrace:
-		return comp.tableLiteral()
+		return compiler.tableLiteral()
 	default:
-		comp.error(fmt.Sprint("Unexpected token: ", comp.current()))
-		comp.advance()
+		compiler.error(fmt.Sprint("Unexpected token: ", compiler.current()))
+		compiler.advance()
 		return NilPrimary()
 	}
 }
 
-func (comp *compiler) variable() Primary {
-	name := comp.current().Text
-	comp.advance()
-	return GlobalPrimary(name)
+func (compiler *compiler) variable() Node {
+	name := compiler.current().Text
+	compiler.advance()
+	return VariablePrimary{Identifier(name)}
 }
 
-func (comp *compiler) tableLiteral() TableLiteral {
-	comp.advance()
-	var pairs []Pair
+func (compiler *compiler) tableLiteral() TableLiteral {
+	compiler.advance()
+	var pairs []Node
 
 	// todo: handle unterminated brace
-	for comp.current().Type != scanner.TokenRightBrace {
-		pairs = append(pairs, comp.pair())
+	for compiler.current().Type != scanner.TokenRightBrace {
+		pairs = append(pairs, compiler.pair())
 	}
 
-	comp.consume(scanner.TokenRightBrace)
+	compiler.consume(scanner.TokenRightBrace)
 
 	return TableLiteral{pairs}
 }
 
-func (comp *compiler) pair() Pair {
-	fmt.Println(comp.current().Type, comp.peek().Type)
+func (compiler *compiler) pair() Node {
+	fmt.Println(compiler.current().Type, compiler.peek().Type)
 	switch {
-	case comp.current().Type == scanner.TokenLeftBracket:
-		return comp.literalPair()
-	case comp.current().Type == scanner.TokenIdentifier && comp.peek().Type == scanner.TokenEqual:
-		return comp.stringPair()
+	case compiler.current().Type == scanner.TokenLeftBracket:
+		return compiler.literalPair()
+	case compiler.current().Type == scanner.TokenIdentifier && compiler.peek().Type == scanner.TokenEqual:
+		return compiler.stringPair()
 	default:
-		return comp.value()
+		return compiler.value()
 	}
 }
 
-func (comp *compiler) literalPair() Pair {
-	comp.consume(scanner.TokenLeftBracket)
+func (compiler *compiler) literalPair() Node {
+	compiler.consume(scanner.TokenLeftBracket)
 
-	expr := comp.expression()
+	expr := compiler.expression()
 
-	comp.consume(scanner.TokenRightBracket)
-	comp.consume(scanner.TokenEqual)
+	compiler.consume(scanner.TokenRightBracket)
+	compiler.consume(scanner.TokenEqual)
 
-	value := comp.expression()
+	value := compiler.expression()
 
-	if comp.current().Type == scanner.TokenComma {
-		comp.consume(scanner.TokenComma)
+	if compiler.current().Type == scanner.TokenComma {
+		compiler.consume(scanner.TokenComma)
 	}
 
 	return LiteralPair{
@@ -395,77 +468,75 @@ func (comp *compiler) literalPair() Pair {
 	}
 }
 
-func (comp *compiler) stringPair() Pair {
-	ident := comp.current().Text
+func (compiler *compiler) stringPair() Node {
+	ident := compiler.identifier()
+	compiler.consume(scanner.TokenEqual)
 
-	comp.consume(scanner.TokenIdentifier)
-	comp.consume(scanner.TokenEqual)
+	expr := compiler.expression()
 
-	expr := comp.expression()
-
-	if comp.current().Type == scanner.TokenComma {
-		comp.consume(scanner.TokenComma)
+	if compiler.current().Type == scanner.TokenComma {
+		compiler.consume(scanner.TokenComma)
 	}
 
 	return StringPair{
-		key:   StringPrimary(ident),
+		key:   StringPrimary(string(ident)),
 		value: expr,
 	}
 }
 
-func (comp *compiler) value() Pair {
-	expr := comp.expression()
+func (compiler *compiler) value() Node {
+	expr := compiler.expression()
 
-	if comp.current().Type == scanner.TokenComma {
-		comp.consume(scanner.TokenComma)
+	if compiler.current().Type == scanner.TokenComma {
+		compiler.consume(scanner.TokenComma)
 	}
 
 	return Value{expr}
 }
 
-func (comp *compiler) advance() {
-	comp.curr += 1
+func (compiler *compiler) advance() {
+	compiler.curr += 1
 }
 
-func (comp *compiler) consume(tt scanner.TokenType) {
-	if comp.current().Type != tt {
-		comp.error(fmt.Sprint("Expected type ", tt, ", found ", comp.current().Type))
+func (compiler *compiler) consume(tt scanner.TokenType) {
+	if compiler.current().Type != tt {
+		compiler.error(fmt.Sprint("Expected type ", tt, ", found ", compiler.current().Type))
 	}
 
-	comp.advance()
+	compiler.advance()
 }
 
-func (comp *compiler) makeConstant(value value.Value) byte {
-	for i, c := range comp.chunk.Constants {
+func (compiler *compiler) makeConstant(value value.Value) byte {
+	for i, c := range compiler.chunk.Constants {
 		if c == value {
 			return byte(i)
 		}
 	}
 
-	index := len(comp.chunk.Constants)
+	index := len(compiler.chunk.Constants)
 
 	// todo: error if too many constants
-	comp.chunk.Constants = append(comp.chunk.Constants, value)
+	compiler.chunk.Constants = append(compiler.chunk.Constants, value)
 
 	return byte(index)
 }
 
-func (comp *compiler) emitBytes(b1, b2 byte) {
-	comp.chunk.Bytecode = append(comp.chunk.Bytecode, Op(b1))
-	comp.chunk.Bytecode = append(comp.chunk.Bytecode, Op(b2))
+func (compiler *compiler) emitBytes(b1, b2 byte) {
+	compiler.chunk.Bytecode = append(compiler.chunk.Bytecode, Op(b1))
+	compiler.chunk.Bytecode = append(compiler.chunk.Bytecode, Op(b2))
 }
 
-func (comp *compiler) emitByte(b byte) {
-	comp.chunk.Bytecode = append(comp.chunk.Bytecode, Op(b))
+func (compiler *compiler) emitByte(b byte) {
+	compiler.chunk.Bytecode = append(compiler.chunk.Bytecode, Op(b))
 }
 
-func (comp *compiler) emitJump(op Op) {
-	comp.emitByte(byte(op))
-	comp.emitBytes(0, 0)
+func (compiler *compiler) emitJump(op Op) {
+	compiler.emitByte(byte(op))
+	compiler.emitBytes(0, 0)
 }
 
-func (comp *compiler) chunkSize() int {
-	return len(comp.chunk.Bytecode)
+func (compiler *compiler) chunkSize() int {
+	return len(compiler.chunk.Bytecode)
 }
 
 func MergeBytes(upper, lower byte) int {
@@ -478,7 +549,7 @@ func SplitBytes(num int) (upper, lower byte) {
 	return
 }
 
-func (comp *compiler) patchJump(source, dest int) {
+func (compiler *compiler) patchJump(source, dest int) {
 	var dist int
 	if dest > source {
 		dist = dest - source - 3
@@ -487,34 +558,34 @@ func (comp *compiler) patchJump(source, dest int) {
 	}
 
 	upper, lower := SplitBytes(dist)
-	comp.chunk.Bytecode[source+1] = Op(upper)
-	comp.chunk.Bytecode[source+2] = Op(lower)
+	compiler.chunk.Bytecode[source+1] = Op(upper)
+	compiler.chunk.Bytecode[source+2] = Op(lower)
 }
 
-func (comp *compiler) emitReturn() {
-	last := len(comp.chunk.Bytecode) - 1
-	if comp.mode == ReplMode && comp.chunk.Bytecode[last] == OpPop {
-		comp.chunk.Bytecode[last] = OpReturn
+func (compiler *compiler) emitReturn() {
+	last := len(compiler.chunk.Bytecode) - 1
+	if compiler.mode == ReplMode && compiler.chunk.Bytecode[last] == OpPop {
+		compiler.chunk.Bytecode[last] = OpReturn
 	} else {
-		comp.emitBytes(OpNil, OpReturn)
+		compiler.emitBytes(OpNil, OpReturn)
 	}
 }
 
-func (comp *compiler) end() (Function, glerror.GluaErrorChain) {
-	comp.emitReturn()
+func (compiler *compiler) end() (Function, glerror.GluaErrorChain) {
+	compiler.emitReturn()
 
-	if !comp.err.IsEmpty() {
-		return Function{}, comp.err
+	if !compiler.err.IsEmpty() {
+		return Function{}, compiler.err
 	}
 
 	return Function{
-		comp.chunk,
+		compiler.chunk,
 		"",
-	}, comp.err
+	}, compiler.err
 }
 
-func (comp *compiler) error(message string) {
-	comp.err.Append(CompileError{message})
+func (compiler *compiler) error(message string) {
+	compiler.err.Append(CompileError{message})
 }
 
 type CompileError struct {

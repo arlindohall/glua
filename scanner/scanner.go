@@ -28,6 +28,7 @@ const (
 	TokenCaret
 	TokenComma
 	TokenDo
+	TokenDot
 	TokenEnd
 	TokenEof
 	TokenEqual
@@ -204,6 +205,8 @@ func (scanner *scanner) scanToken() (Token, error) {
 		return Token{"]", TokenRightBracket}, nil
 	case scanner.check(','):
 		return Token{",", TokenComma}, nil
+	case scanner.check('.'):
+		return Token{".", TokenDot}, nil
 	default:
 		scanner.advance()
 		scanner.error(fmt.Sprint("Unexpected character '", string([]rune{r}), "'"))

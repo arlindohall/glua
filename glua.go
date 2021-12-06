@@ -33,6 +33,7 @@ func repl() {
 
 		if !err.IsEmpty() {
 			fmt.Println(err)
+			vm.ClearErrors()
 		} else {
 			fmt.Println(val)
 		}

@@ -34,7 +34,7 @@ func (vm *VM) Interpret(chunk compiler.Chunk) (value.Value, glerror.GluaErrorCha
 
 	// todo: call function
 	if TraceExecution {
-		fmt.Println("========== <script> ==========")
+		fmt.Fprintln(os.Stderr, "========== <script> ==========")
 	}
 
 	val := vm.run()
@@ -133,7 +133,7 @@ func (vm *VM) run() value.Value {
 			val := vm.globals[name]
 
 			if val == nil {
-				return vm.error(fmt.Sprint("Undefined variable ", name))
+				vm.push(value.Nil{})
 			} else {
 				vm.push(val)
 			}
@@ -173,6 +173,17 @@ func (vm *VM) run() value.Value {
 			if !ok {
 				return vm.error("Cannot set key <nil> in table.")
 			}
+		case compiler.OpGetTable:
+			attribute := vm.pop()
+			table := vm.pop()
+
+			if !table.IsTable() {
+				vm.error("Cannot assign to non-table")
+				return value.Nil{}
+			}
+
+			val := table.AsTable().Get(attribute)
+			vm.push(val)
 		default:
 			return vm.error(fmt.Sprint("Do not know how to perform: ", op))
 		}
@@ -265,4 +276,12 @@ type RuntimeError struct {
 
 func (re RuntimeError) Error() string {
 	return fmt.Sprintf("Runtime error ---> %s", re.message)
+}
+
+func (vm *VM) GetErrors() error {
+	return vm.err
+}
+
+func (vm *VM) ClearErrors() {
+	vm.err = glerror.GluaErrorChain{}
 }

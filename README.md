@@ -38,7 +38,7 @@ AssertStatement := 'assert' Expression
 
 Expression := Assignment
 
-Assignment := Identifier ( '=' Assignment )?
+Assignment := ( Call '.' )? Identifier ( '=' Assignment )
     | LogicOr
 
 # Logic and is higher precedence than or; or is the lowest
@@ -63,7 +63,12 @@ Factor := Unary ( ('*' | '/') Unary ) *
 # Instead use a recursive definition
 Unary := ('-' | '!') Unary | Exponent
 
-Exponent := Primary ( '^' Primary )
+Exponent := Call ( '^' Call )
+
+# Name is call because this is where the precedence for function
+# calls will go, highest precedence except for literals and
+# identifiers
+Call := Primary ( '.' Identifier ) *
 
 Primary := Number | String | Identifier | 'nil' | Table
 

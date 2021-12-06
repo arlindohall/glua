@@ -31,6 +31,8 @@ func (tt TokenType) String() string {
 		return "TokenSemicolon"
 	case TokenComma:
 		return "TokenComma"
+	case TokenDot:
+		return "TokenDot"
 	case TokenSlash:
 		return "TokenSlash"
 	case TokenStar:
