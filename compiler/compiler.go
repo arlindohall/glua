@@ -362,19 +362,39 @@ func (compiler *compiler) exponent() Node {
 func (compiler *compiler) call() Node {
 	primary := compiler.primary()
 
-	for compiler.current().Type == scanner.TokenDot {
-		compiler.consume(scanner.TokenDot)
+	for compiler.isCall() {
+		switch compiler.current().Type {
+		case scanner.TokenDot:
+			compiler.consume(scanner.TokenDot)
 
-		// todo: get by any value not just string using x[y] notation
-		attribute := compiler.identifier()
+			attribute := compiler.identifier()
 
-		primary = TableAccessor{
-			primary,
-			StringPrimary(string(attribute)),
+			primary = TableAccessor{
+				primary,
+				StringPrimary(string(attribute)),
+			}
+		case scanner.TokenLeftBracket:
+			compiler.consume(scanner.TokenLeftBracket)
+			attribute := compiler.expression()
+			compiler.consume(scanner.TokenRightBracket)
+
+			primary = TableAccessor{
+				primary,
+				attribute,
+			}
 		}
 	}
 
 	return primary
+}
+
+func (compiler *compiler) isCall() bool {
+	switch compiler.current().Type {
+	case scanner.TokenDot, scanner.TokenLeftBracket:
+		return true
+	default:
+		return false
+	}
 }
 
 func (compiler *compiler) primary() Node {

@@ -143,3 +143,11 @@ func TestSetTableAttribute(t *testing.T) {
 
 	expectNoErrors(t, text)
 }
+
+func TestGetTableBracketNotation(t *testing.T) {
+	text := `x = {}
+	x[4] = 1
+	assert x[4] == 1`
+
+	expectNoErrors(t, text)
+}
