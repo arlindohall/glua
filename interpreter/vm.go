@@ -166,6 +166,19 @@ func (vm *VM) run() value.Value {
 		case compiler.OpSetTable:
 			val := vm.pop()
 			key := vm.pop()
+			table := vm.pop().AsTable()
+
+			ok := table.Set(key, val)
+
+			if !ok {
+				return vm.error("Cannot set key <nil> in table.")
+			}
+
+			vm.push(val)
+		case compiler.OpInitTable:
+			// Exact same as set table, but leaves table on stack instead of value
+			val := vm.pop()
+			key := vm.pop()
 			table := vm.peek().AsTable()
 
 			ok := table.Set(key, val)
@@ -178,8 +191,7 @@ func (vm *VM) run() value.Value {
 			table := vm.pop()
 
 			if !table.IsTable() {
-				vm.error("Cannot assign to non-table")
-				return value.Nil{}
+				return vm.error("Cannot assign to non-table")
 			}
 
 			val := table.AsTable().Get(attribute)

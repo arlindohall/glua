@@ -204,7 +204,7 @@ func (t *Table) IsBoolean() bool {
 }
 
 func (t *Table) AsBoolean() bool {
-	return false
+	return true
 }
 
 func (t *Table) IsString() bool {

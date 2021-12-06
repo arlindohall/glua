@@ -151,3 +151,13 @@ func TestGetTableBracketNotation(t *testing.T) {
 
 	expectNoErrors(t, text)
 }
+
+func TestChainedAssignment(t *testing.T) {
+	text := `assert x = y = true
+	assert t = u = {}
+	assert t.x = u.x = true
+	assert (t[true] = u[true] = 10) == 10
+	`
+
+	expectNoErrors(t, text)
+}

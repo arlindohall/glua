@@ -661,7 +661,7 @@ type StringPair struct {
 func (pair StringPair) Emit(compiler *compiler) {
 	pair.key.Emit(compiler)
 	pair.value.Emit(compiler)
-	compiler.emitByte(OpSetTable)
+	compiler.emitByte(OpInitTable)
 }
 
 func (pair StringPair) printTree(indent int) {
@@ -683,7 +683,7 @@ type LiteralPair struct {
 func (pair LiteralPair) Emit(compiler *compiler) {
 	pair.key.Emit(compiler)
 	pair.value.Emit(compiler)
-	compiler.emitByte(OpSetTable)
+	compiler.emitByte(OpInitTable)
 }
 
 func (pair LiteralPair) printTree(indent int) {

@@ -21,6 +21,8 @@ func (op Op) String() string {
 		return "OpCreateTable"
 	case OpSetTable:
 		return "OpSetTable"
+	case OpInitTable:
+		return "OpInitTable"
 	case OpGetTable:
 		return "OpGetTable"
 	case OpInsertTable:
@@ -77,7 +79,7 @@ func DebugPrint(function Function) {
 			print = printConstant
 		case OpAdd, OpSubtract, OpNot, OpNegate, OpMult, OpDivide, OpNil,
 			OpReturn, OpPop, OpAssert, OpEquals, OpLessThan, OpAnd, OpOr,
-			OpCreateTable, OpSetTable, OpInsertTable, OpGetTable, OpZero:
+			OpCreateTable, OpSetTable, OpInsertTable, OpInitTable, OpGetTable, OpZero:
 			print = printInstruction
 		case OpLoop:
 			print = printLoop

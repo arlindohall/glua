@@ -30,6 +30,7 @@ const (
 	OpReturn
 	OpSetGlobal
 	OpSetTable
+	OpInitTable
 	OpInsertTable
 	OpSubtract
 	OpZero
