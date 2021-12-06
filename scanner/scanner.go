@@ -40,6 +40,7 @@ const (
 	TokenIdentifier
 	TokenLeftBrace
 	TokenLeftBracket
+	TokenLeftParen
 	TokenLess
 	TokenLessEqual
 	TokenMinus
@@ -49,6 +50,7 @@ const (
 	TokenPlus
 	TokenRightBrace
 	TokenRightBracket
+	TokenRightParen
 	TokenSemicolon
 	TokenSlash
 	TokenStar
@@ -203,6 +205,10 @@ func (scanner *scanner) scanToken() (Token, error) {
 		return Token{"[", TokenLeftBracket}, nil
 	case scanner.check(']'):
 		return Token{"]", TokenRightBracket}, nil
+	case scanner.check('('):
+		return Token{"(", TokenLeftParen}, nil
+	case scanner.check(')'):
+		return Token{")", TokenRightParen}, nil
 	case scanner.check(','):
 		return Token{",", TokenComma}, nil
 	case scanner.check('.'):

@@ -409,11 +409,21 @@ func (compiler *compiler) primary() Node {
 		return compiler.variable()
 	case scanner.TokenLeftBrace:
 		return compiler.tableLiteral()
+	case scanner.TokenLeftParen:
+		return compiler.grouping()
 	default:
 		compiler.error(fmt.Sprint("Unexpected token: ", compiler.current()))
 		compiler.advance()
 		return NilPrimary()
 	}
+}
+
+func (compiler *compiler) grouping() Node {
+	compiler.consume(scanner.TokenLeftParen)
+	node := compiler.expression()
+	compiler.consume(scanner.TokenRightParen)
+
+	return node
 }
 
 func (compiler *compiler) variable() Node {

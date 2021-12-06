@@ -52,6 +52,12 @@ func TestArithmeticAll(t *testing.T) {
 	expectNoErrors(t, text)
 }
 
+func TestGrouping(t *testing.T) {
+	text := "assert 3 * (1 + 2) * 3 == 27"
+
+	expectNoErrors(t, text)
+}
+
 func TestAndExpression(t *testing.T) {
 	text := "assert 1 and 2 == 2 or 3 == 3 == 3"
 
