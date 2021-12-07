@@ -13,6 +13,8 @@ func (tt TokenType) String() string {
 		return "TokenAssert"
 	case TokenGlobal:
 		return "TokenGlobal"
+	case TokenLocal:
+		return "TokenLocal"
 	case TokenIdentifier:
 		return "TokenIdentifier"
 	case TokenNumber:
@@ -76,6 +78,7 @@ func (t Token) String() string {
 	return fmt.Sprintf("%v/\"%v\"", t.Type, t.Text)
 }
 
+// todo: if using goroutines to publish tokens, how to debug?
 func DebugTokens(tokens []Token) {
 	for _, token := range tokens {
 		if token.Type == TokenSemicolon {

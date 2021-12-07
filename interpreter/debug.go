@@ -13,7 +13,7 @@ func DebugTrace(vm *VM) {
 		compiler.OpReturn, compiler.OpPop, compiler.OpAssert, compiler.OpLessThan, compiler.OpEquals, compiler.OpAnd, compiler.OpOr,
 		compiler.OpCreateTable, compiler.OpSetTable, compiler.OpInsertTable, compiler.OpInitTable, compiler.OpGetTable, compiler.OpZero:
 		trace = traceInstruction
-	case compiler.OpConstant, compiler.OpSetGlobal, compiler.OpGetGlobal:
+	case compiler.OpConstant, compiler.OpSetGlobal, compiler.OpGetGlobal, compiler.OpSetLocal, compiler.OpGetLocal:
 		trace = traceConstant
 	case compiler.OpJumpIfFalse:
 		trace = traceJump

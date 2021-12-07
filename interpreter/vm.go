@@ -137,6 +137,16 @@ func (vm *VM) run() value.Value {
 			} else {
 				vm.push(val)
 			}
+		case compiler.OpGetLocal:
+			slot := vm.readByte()
+			val := vm.getLocal(byte(slot))
+
+			vm.push(val)
+		case compiler.OpSetLocal:
+			slot := vm.readByte()
+			val := vm.peek()
+
+			vm.setLocal(byte(slot), val)
 		case compiler.OpJumpIfFalse:
 			cond := vm.pop()
 
@@ -226,6 +236,14 @@ func (vm *VM) push(val value.Value) {
 	}
 
 	vm.stackSize += 1
+}
+
+func (vm *VM) getLocal(slot byte) value.Value {
+	return vm.stack[slot]
+}
+
+func (vm *VM) setLocal(slot byte, val value.Value) {
+	vm.stack[slot] = val
 }
 
 func (vm *VM) arithmetic(name string, op func(float64, float64) float64) bool {

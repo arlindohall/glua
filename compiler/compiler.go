@@ -17,6 +17,7 @@ const (
 	OpDivide
 	OpEquals
 	OpGetGlobal
+	OpGetLocal
 	OpGetTable
 	OpJumpIfFalse
 	OpLessThan
@@ -29,6 +30,7 @@ const (
 	OpPop
 	OpReturn
 	OpSetGlobal
+	OpSetLocal
 	OpSetTable
 	OpInitTable
 	OpInsertTable
@@ -45,12 +47,19 @@ type Op byte
 
 type ReturnMode int
 
+type Local struct {
+	name  Identifier
+	scope int
+}
+
 type compiler struct {
-	text  []scanner.Token
-	curr  int
-	chunk Chunk
-	err   glerror.GluaErrorChain
-	mode  ReturnMode
+	text   []scanner.Token
+	curr   int
+	chunk  Chunk
+	locals []Local
+	scope  int
+	err    glerror.GluaErrorChain
+	mode   ReturnMode
 }
 
 type Chunk struct {
@@ -65,11 +74,13 @@ type Function struct {
 
 func Compile(text []scanner.Token, mode ReturnMode) (Function, glerror.GluaErrorChain) {
 	compiler := compiler{
-		text,
-		0,
-		Chunk{},
-		glerror.GluaErrorChain{},
-		mode,
+		text:   text,
+		curr:   0,
+		chunk:  Chunk{},
+		locals: nil,
+		scope:  0,
+		err:    glerror.GluaErrorChain{},
+		mode:   mode,
 	}
 
 	compiler.compile()
@@ -112,9 +123,12 @@ func (compiler *compiler) current() scanner.Token {
 
 func (compiler *compiler) declaration() Node {
 	var state Node
-	if compiler.current().Type == scanner.TokenGlobal {
+	switch compiler.current().Type {
+	case scanner.TokenGlobal:
 		state = compiler.global()
-	} else {
+	case scanner.TokenLocal:
+		state = compiler.local()
+	default:
 		state = compiler.statement()
 	}
 
@@ -127,8 +141,21 @@ func (compiler *compiler) declaration() Node {
 }
 
 func (compiler *compiler) global() Node {
-	compiler.advance()
+	compiler.consume(scanner.TokenGlobal)
 	decl := GlobalDeclaration{Identifier(compiler.identifier()), nil}
+
+	if compiler.current().Type == scanner.TokenEqual {
+		compiler.consume(scanner.TokenEqual)
+		var assignment = compiler.assignment()
+		decl.assignment = &assignment
+	}
+
+	return decl
+}
+
+func (compiler *compiler) local() Node {
+	compiler.consume(scanner.TokenLocal)
+	decl := LocalDeclaration{Identifier(compiler.identifier()), nil}
 
 	if compiler.current().Type == scanner.TokenEqual {
 		compiler.consume(scanner.TokenEqual)
@@ -148,6 +175,8 @@ func (compiler *compiler) statement() Node {
 		}
 	case scanner.TokenWhile:
 		return compiler.whileStatement()
+	case scanner.TokenDo:
+		return compiler.block()
 	default:
 		return Expression{compiler.expression()}
 	}
@@ -155,22 +184,37 @@ func (compiler *compiler) statement() Node {
 
 func (compiler *compiler) block() BlockStatement {
 	var block BlockStatement
-
-	if compiler.current().Type != scanner.TokenDo {
-		compiler.advance()
-		block.statements = append(block.statements, compiler.statement())
-		return block
-	}
-
 	compiler.consume(scanner.TokenDo)
 
 	for compiler.current().Type != scanner.TokenEnd {
-		block.statements = append(block.statements, compiler.statement())
+		block.statements = append(block.statements, compiler.declaration())
 	}
 
 	compiler.consume(scanner.TokenEnd)
-
 	return block
+}
+
+func (compiler *compiler) startScope() {
+	compiler.scope += 1
+}
+
+func (compiler *compiler) endScope() {
+	compiler.scope -= 1
+
+	// Find the first local in a scope above current scope
+	var i int
+	for i = 0; i < len(compiler.locals); i++ {
+		if compiler.locals[i].scope > compiler.scope {
+			break
+		}
+	}
+
+	// Drop the whole list of locals after that
+	if i == 0 {
+		compiler.locals = nil
+	} else {
+		compiler.locals = compiler.locals[0:i]
+	}
 }
 
 func (compiler *compiler) whileStatement() Node {
@@ -451,6 +495,16 @@ func (compiler *compiler) variable() Node {
 	name := compiler.current().Text
 	compiler.advance()
 	return VariablePrimary{Identifier(name)}
+}
+
+func (compiler *compiler) getLocal(name Identifier) int {
+	for i, local := range compiler.locals {
+		if local.name == name {
+			return i
+		}
+	}
+
+	return -1
 }
 
 func (compiler *compiler) tableLiteral() TableLiteral {

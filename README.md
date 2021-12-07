@@ -17,6 +17,13 @@ And to run the code I use
 go run . <filename>
 ```
 
+## Missing Features List
+
+- Weak tables
+- Functions
+- Multiple return
+- For loops/iterators
+
 ## Grammar
 
 I based this grammar on the Lox Grammar[1]

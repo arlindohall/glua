@@ -161,3 +161,17 @@ func TestChainedAssignment(t *testing.T) {
 
 	expectNoErrors(t, text)
 }
+
+func TestLocalScope(t *testing.T) {
+	text := `global x = 10
+	do
+		assert x == 10
+		local x = 5
+		assert x == 5
+		x = 15
+		assert x == 15
+	end
+	assert x == 10`
+
+	expectNoErrors(t, text)
+}

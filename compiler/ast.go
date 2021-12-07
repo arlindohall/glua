@@ -52,6 +52,39 @@ func (declaration GlobalDeclaration) assign(comp *compiler) Node {
 	return declaration
 }
 
+type LocalDeclaration struct {
+	name       Identifier
+	assignment *Node
+}
+
+func (declaration LocalDeclaration) Emit(compiler *compiler) {
+	// todo: more than one local
+	var local Local
+	if declaration.assignment != nil {
+		local = Local{declaration.name, compiler.scope}
+		(*declaration.assignment).Emit(compiler)
+	} else {
+		local = Local{declaration.name, compiler.scope}
+		compiler.emitByte(OpNil)
+	}
+	compiler.locals = append(compiler.locals, local)
+}
+
+func (declaration LocalDeclaration) printTree(indent int) {
+	printIndent(indent, "LocalDeclaration")
+	printIndent(indent+1, declaration.name)
+
+	if declaration.assignment != nil {
+		(*declaration.assignment).printTree(indent + 1)
+	}
+}
+
+func (declaration LocalDeclaration) assign(comp *compiler) Node {
+	// todo should we hook into this for local variables?
+	comp.error("Cannot assign to global variable declaration")
+	return declaration
+}
+
 type WhileStatement struct {
 	condition Node
 	body      BlockStatement
@@ -92,9 +125,11 @@ type BlockStatement struct {
 
 // todo: block scope
 func (statement BlockStatement) Emit(compiler *compiler) {
+	compiler.startScope()
 	for _, st := range statement.statements {
 		st.Emit(compiler)
 	}
+	compiler.endScope()
 }
 
 func (statement BlockStatement) printTree(indent int) {
@@ -157,8 +192,13 @@ type VariableAssignment struct {
 func (assignment VariableAssignment) Emit(compiler *compiler) {
 	assignment.value.Emit(compiler)
 
-	name := compiler.makeConstant(value.StringVal(assignment.name))
-	compiler.emitBytes(OpSetGlobal, name)
+	local := compiler.getLocal(assignment.name)
+	if local == -1 {
+		name := compiler.makeConstant(value.StringVal(assignment.name))
+		compiler.emitBytes(OpSetGlobal, name)
+	} else {
+		compiler.emitBytes(OpSetLocal, byte(local))
+	}
 }
 
 func (assignment VariableAssignment) printTree(indent int) {
@@ -558,13 +598,19 @@ func NilPrimary() LiteralPrimary {
 }
 
 type VariablePrimary struct {
-	// scope VariableScope (Global|Local)
 	name Identifier
 }
 
 func (primary VariablePrimary) Emit(compiler *compiler) {
-	constant := compiler.makeConstant(value.StringVal(string(primary.name)))
-	compiler.emitBytes(OpGetGlobal, constant)
+	name := primary.name
+
+	local := compiler.getLocal(name)
+	if local == -1 {
+		constant := compiler.makeConstant(value.StringVal(string(name)))
+		compiler.emitBytes(OpGetGlobal, constant)
+	} else {
+		compiler.emitBytes(OpGetLocal, byte(local))
+	}
 }
 
 func (primary VariablePrimary) printTree(indent int) {

@@ -43,6 +43,7 @@ const (
 	TokenLeftParen
 	TokenLess
 	TokenLessEqual
+	TokenLocal
 	TokenMinus
 	TokenNil
 	TokenNumber
@@ -67,6 +68,7 @@ func Scanner(reader *bufio.Reader) *scanner {
 	}
 }
 
+// todo: goroutine publishes one token at a time?
 func (scanner *scanner) ScanTokens() ([]Token, glerror.GluaErrorChain) {
 	var tokens []Token
 
@@ -316,6 +318,8 @@ func (scanner *scanner) scanWord() (Token, error) {
 		return Token{source, TokenNil}, nil
 	case "global":
 		return Token{source, TokenGlobal}, nil
+	case "local":
+		return Token{source, TokenLocal}, nil
 	case "while":
 		return Token{source, TokenWhile}, nil
 	case "do":

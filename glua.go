@@ -27,6 +27,7 @@ func repl() {
 	fmt.Print("> ")
 
 	// todo: add history
+	// todo: read a whole declaration at a time, not a line
 	vm := interpreter.NewVm()
 	for line, _, err := reader.ReadLine(); err == nil; line, _, err = reader.ReadLine() {
 		val, err := interpreter.FromString(&vm, string(line)).Interpret()

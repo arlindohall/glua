@@ -17,6 +17,10 @@ func (op Op) String() string {
 		return "OpGetGlobal"
 	case OpSetGlobal:
 		return "OpSetGlobal"
+	case OpGetLocal:
+		return "OpGetLocal"
+	case OpSetLocal:
+		return "OpSetLocal"
 	case OpCreateTable:
 		return "OpCreateTable"
 	case OpSetTable:
@@ -75,7 +79,7 @@ func DebugPrint(function Function) {
 	var print func(int, []Op) int
 	for i < len(bytecode) {
 		switch bytecode[i] {
-		case OpConstant, OpSetGlobal, OpGetGlobal:
+		case OpConstant, OpSetGlobal, OpGetGlobal, OpSetLocal, OpGetLocal:
 			print = printConstant
 		case OpAdd, OpSubtract, OpNot, OpNegate, OpMult, OpDivide, OpNil,
 			OpReturn, OpPop, OpAssert, OpEquals, OpLessThan, OpAnd, OpOr,
