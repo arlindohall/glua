@@ -5,7 +5,7 @@ import (
 	"os"
 )
 
-func (op Op) String() string {
+func ByteName(op byte) string {
 	switch op {
 	case OpAssert:
 		return "OpAssert"
@@ -31,6 +31,8 @@ func (op Op) String() string {
 		return "OpGetTable"
 	case OpInsertTable:
 		return "OpInsertTable"
+	case OpCall:
+		return "OpCall"
 	case OpConstant:
 		return "OpConstant"
 	case OpPop:
@@ -76,21 +78,22 @@ func DebugPrint(function Function) {
 	}
 
 	i := 0
-	var print func(int, []Op) int
+	var print func(int, []byte) int
 	for i < len(bytecode) {
 		switch bytecode[i] {
 		case OpConstant, OpSetGlobal, OpGetGlobal, OpSetLocal, OpGetLocal:
 			print = printConstant
 		case OpAdd, OpSubtract, OpNot, OpNegate, OpMult, OpDivide, OpNil,
 			OpReturn, OpPop, OpAssert, OpEquals, OpLessThan, OpAnd, OpOr,
-			OpCreateTable, OpSetTable, OpInsertTable, OpInitTable, OpGetTable, OpZero:
+			OpCreateTable, OpSetTable, OpInsertTable, OpInitTable, OpGetTable, OpZero,
+			OpCall:
 			print = printInstruction
 		case OpLoop:
 			print = printLoop
 		case OpJumpIfFalse:
 			print = printJump
 		default:
-			panic(fmt.Sprint("Unknown op for debug print: ", bytecode[i]))
+			panic(fmt.Sprint("Unknown op for debug print: ", ByteName(bytecode[i])))
 		}
 		i = print(i, bytecode)
 	}
@@ -98,28 +101,28 @@ func DebugPrint(function Function) {
 	fmt.Fprintln(os.Stderr)
 }
 
-func printInstruction(i int, bytecode []Op) int {
-	fmt.Fprintf(os.Stderr, "%04d | %-16v\n", i, bytecode[i])
+func printInstruction(i int, bytecode []byte) int {
+	fmt.Fprintf(os.Stderr, "%04d | %-16v\n", i, ByteName(bytecode[i]))
 	return i + 1
 }
 
-func printConstant(i int, bytecode []Op) int {
-	fmt.Fprintf(os.Stderr, "%04d | %-16v %-4d\n", i, bytecode[i], bytecode[i+1])
+func printConstant(i int, bytecode []byte) int {
+	fmt.Fprintf(os.Stderr, "%04d | %-16s %-4d\n", i, ByteName(bytecode[i]), bytecode[i+1])
 	return i + 2
 }
 
-func printJump(i int, bytecode []Op) int {
+func printJump(i int, bytecode []byte) int {
 	jump := MergeBytes(byte(bytecode[i+1]), byte(bytecode[i+2]))
 	start := i + 3
 	to := start + jump
-	fmt.Fprintf(os.Stderr, "%04d | %-16v %-6d (%-6d -> %-6d)\n", i, bytecode[i], jump, start, to)
+	fmt.Fprintf(os.Stderr, "%04d | %-16v %-6d (%-6d -> %-6d)\n", i, ByteName(bytecode[i]), jump, start, to)
 	return i + 3
 }
 
-func printLoop(i int, bytecode []Op) int {
+func printLoop(i int, bytecode []byte) int {
 	jump := MergeBytes(byte(bytecode[i+1]), byte(bytecode[i+2]))
 	start := i + 3
 	to := start - jump
-	fmt.Fprintf(os.Stderr, "%04d | %-16v %-6d (%-6d -> %-6d)\n", i, bytecode[i], jump, start, to)
+	fmt.Fprintf(os.Stderr, "%04d | %-16v %-6d (%-6d -> %-6d)\n", i, ByteName(bytecode[i]), jump, start, to)
 	return i + 3
 }

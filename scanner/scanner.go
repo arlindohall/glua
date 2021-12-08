@@ -11,12 +11,14 @@ import (
 type Token struct {
 	Text string
 	Type TokenType
+	Line int
 }
 
 type TokenType int
 
 type scanner struct {
 	reader *bufio.Reader
+	line   int
 	err    glerror.GluaErrorChain
 }
 
@@ -34,6 +36,7 @@ const (
 	TokenEqual
 	TokenEqualEqual
 	TokenFalse
+	TokenFunction
 	TokenGlobal
 	TokenGreater
 	TokenGreaterEqual
@@ -49,6 +52,7 @@ const (
 	TokenNumber
 	TokenOr
 	TokenPlus
+	TokenReturn
 	TokenRightBrace
 	TokenRightBracket
 	TokenRightParen
@@ -155,6 +159,10 @@ func (scanner *scanner) skipWhitespace() {
 			return
 		}
 
+		if r == '\n' {
+			scanner.line += 1
+		}
+
 		scanner.advance()
 	}
 }
@@ -165,60 +173,68 @@ func (scanner *scanner) scanToken() (Token, error) {
 	r, err := scanner.peekRune()
 	switch {
 	case err == io.EOF:
-		return Token{"", TokenEof}, err
+		return scanner.makeToken("", TokenEof), err
 	case err != nil:
 		scanner.error(fmt.Sprint("Error reading next character ", err))
-		return Token{"", TokenError}, nil
+		return scanner.makeToken("", TokenError), nil
 	case isNumber(r):
 		return scanner.scanNumber()
 	case isAlpha(r):
 		return scanner.scanWord()
 	case scanner.check('+'):
-		return Token{"+", TokenPlus}, nil
+		return scanner.makeToken("+", TokenPlus), nil
 	case scanner.check('-'):
-		return Token{"-", TokenMinus}, nil
+		return scanner.makeToken("-", TokenMinus), nil
 	case scanner.check('*'):
-		return Token{"*", TokenStar}, nil
+		return scanner.makeToken("*", TokenStar), nil
 	case scanner.check('/'):
-		return Token{"/", TokenSlash}, nil
+		return scanner.makeToken("/", TokenSlash), nil
 	case scanner.check(';'):
-		return Token{";", TokenSemicolon}, nil
+		return scanner.makeToken(";", TokenSemicolon), nil
 	case scanner.check('!'):
-		return Token{"!", TokenBang}, nil
+		return scanner.makeToken("!", TokenBang), nil
 	case scanner.check('<'):
 		if scanner.check('=') {
-			return Token{"=", TokenEqual}, nil
+			return scanner.makeToken("=", TokenEqual), nil
 		} else {
-			return Token{"<", TokenLess}, nil
+			return scanner.makeToken("<", TokenLess), nil
 		}
 	case scanner.check('='):
 		if scanner.check('=') {
-			return Token{"==", TokenEqualEqual}, nil
+			return scanner.makeToken("==", TokenEqualEqual), nil
 		} else {
-			return Token{"=", TokenEqual}, nil
+			return scanner.makeToken("=", TokenEqual), nil
 		}
 	case scanner.check('"'):
 		return scanner.scanString()
 	case scanner.check('{'):
-		return Token{"{", TokenLeftBrace}, nil
+		return scanner.makeToken("{", TokenLeftBrace), nil
 	case scanner.check('}'):
-		return Token{"}", TokenRightBrace}, nil
+		return scanner.makeToken("}", TokenRightBrace), nil
 	case scanner.check('['):
-		return Token{"[", TokenLeftBracket}, nil
+		return scanner.makeToken("[", TokenLeftBracket), nil
 	case scanner.check(']'):
-		return Token{"]", TokenRightBracket}, nil
+		return scanner.makeToken("]", TokenRightBracket), nil
 	case scanner.check('('):
-		return Token{"(", TokenLeftParen}, nil
+		return scanner.makeToken("(", TokenLeftParen), nil
 	case scanner.check(')'):
-		return Token{")", TokenRightParen}, nil
+		return scanner.makeToken(")", TokenRightParen), nil
 	case scanner.check(','):
-		return Token{",", TokenComma}, nil
+		return scanner.makeToken(",", TokenComma), nil
 	case scanner.check('.'):
-		return Token{".", TokenDot}, nil
+		return scanner.makeToken(".", TokenDot), nil
 	default:
 		scanner.advance()
 		scanner.error(fmt.Sprint("Unexpected character '", string([]rune{r}), "'"))
-		return Token{}, scanner.err
+		return scanner.makeToken("", TokenError), scanner.err
+	}
+}
+
+func (scanner *scanner) makeToken(name string, tt TokenType) Token {
+	return Token{
+		Text: name,
+		Type: tt,
+		Line: scanner.line,
 	}
 }
 
@@ -232,25 +248,26 @@ func (scanner *scanner) scanNumber() (Token, error) {
 
 	// On EOF, just unread the EOF and let the next skipWhitespace pick it up
 	if err != nil && err != io.EOF {
-		return Token{}, err
+		return scanner.makeToken(string(runes), TokenError), err
 	}
 
 	if err != io.EOF {
 		scanner.revert()
 	}
 
-	return Token{
-		Text: string(runes),
-		Type: TokenNumber,
-	}, nil
+	return scanner.makeToken(
+		string(runes),
+		TokenNumber,
+	), nil
 }
 
 func (scanner *scanner) scanString() (Token, error) {
 	var literal []rune
 	for r, err := scanner.scanRune(); err == nil && r != '"'; r, err = scanner.scanRune() {
 		if r == '\n' {
+			scanner.line += 1
 			scanner.error("Newline in string literal")
-			return Token{string(literal), TokenError}, scanner.err
+			return scanner.makeToken(string(literal), TokenError), scanner.err
 		}
 
 		if r != '\\' {
@@ -261,13 +278,13 @@ func (scanner *scanner) scanString() (Token, error) {
 		escape, escapeErr := scanner.scanEscape()
 
 		if escapeErr != nil {
-			return Token{"", TokenError}, escapeErr
+			return scanner.makeToken(string(literal), TokenError), escapeErr
 		}
 
 		literal = append(literal, escape)
 	}
 
-	return Token{string(literal), TokenString}, nil
+	return scanner.makeToken(string(literal), TokenString), nil
 }
 
 func (scanner *scanner) scanEscape() (rune, error) {
@@ -305,29 +322,33 @@ func (scanner *scanner) scanWord() (Token, error) {
 	// todo: use a trie to speed up
 	switch source {
 	case "assert":
-		return Token{source, TokenAssert}, nil
+		return scanner.makeToken(source, TokenAssert), nil
 	case "true":
-		return Token{source, TokenTrue}, nil
+		return scanner.makeToken(source, TokenTrue), nil
 	case "false":
-		return Token{source, TokenFalse}, nil
+		return scanner.makeToken(source, TokenFalse), nil
 	case "and":
-		return Token{source, TokenAnd}, nil
+		return scanner.makeToken(source, TokenAnd), nil
 	case "or":
-		return Token{source, TokenOr}, nil
+		return scanner.makeToken(source, TokenOr), nil
 	case "nil":
-		return Token{source, TokenNil}, nil
+		return scanner.makeToken(source, TokenNil), nil
 	case "global":
-		return Token{source, TokenGlobal}, nil
+		return scanner.makeToken(source, TokenGlobal), nil
 	case "local":
-		return Token{source, TokenLocal}, nil
+		return scanner.makeToken(source, TokenLocal), nil
 	case "while":
-		return Token{source, TokenWhile}, nil
+		return scanner.makeToken(source, TokenWhile), nil
 	case "do":
-		return Token{source, TokenDo}, nil
+		return scanner.makeToken(source, TokenDo), nil
 	case "end":
-		return Token{source, TokenEnd}, nil
+		return scanner.makeToken(source, TokenEnd), nil
+	case "function":
+		return scanner.makeToken(source, TokenFunction), nil
+	case "return":
+		return scanner.makeToken(source, TokenReturn), nil
 	default:
-		return Token{source, TokenIdentifier}, nil
+		return scanner.makeToken(source, TokenIdentifier), nil
 	}
 
 }
@@ -347,14 +368,18 @@ func isAlpha(r rune) bool {
 }
 
 func (scanner *scanner) error(message string) {
-	scanner.err.Append(ScanError{message})
+	scanner.err.Append(ScanError{
+		message: message,
+		line:    scanner.line,
+	})
 }
 
 type ScanError struct {
 	message string
+	line    int
 }
 
 // todo: line numbers
 func (se ScanError) Error() string {
-	return fmt.Sprintf("Scan error ---> %s", se.message)
+	return fmt.Sprintf("Scan error [line=%d] ---> %s", se.line, se.message)
 }

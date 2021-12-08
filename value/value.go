@@ -1,6 +1,8 @@
 package value
 
-import "fmt"
+import (
+	"fmt"
+)
 
 type Value interface {
 	String() string
@@ -15,6 +17,9 @@ type Value interface {
 
 	IsTable() bool
 	AsTable() *Table
+
+	IsFunction() bool
+	AsFunction() *Closure
 
 	IsNil() bool
 }
@@ -57,6 +62,14 @@ func (s StringVal) AsTable() *Table {
 	panic("Internal error: cannot cast string as table.")
 }
 
+func (s StringVal) IsFunction() bool {
+	return false
+}
+
+func (s StringVal) AsFunction() *Closure {
+	return nil
+}
+
 type Number float64
 
 func (n Number) String() string {
@@ -93,6 +106,14 @@ func (n Number) IsTable() bool {
 
 func (n Number) AsTable() *Table {
 	panic("Internal error: cannot cast number as table.")
+}
+
+func (n Number) IsFunction() bool {
+	return false
+}
+
+func (n Number) AsFunction() *Closure {
+	return nil
 }
 
 type Boolean bool
@@ -137,6 +158,14 @@ func (b Boolean) AsTable() *Table {
 	panic("Internal error: cannot cast boolean as table.")
 }
 
+func (b Boolean) IsFunction() bool {
+	return false
+}
+
+func (b Boolean) AsFunction() *Closure {
+	return nil
+}
+
 type Nil struct{}
 
 func (n Nil) String() string {
@@ -173,6 +202,14 @@ func (n Nil) IsTable() bool {
 
 func (n Nil) AsTable() *Table {
 	panic("Internal error: cannot cast nil as table.")
+}
+
+func (n Nil) IsFunction() bool {
+	return false
+}
+
+func (n Nil) AsFunction() *Closure {
+	return nil
 }
 
 type Table struct {
@@ -223,6 +260,14 @@ func (t *Table) AsTable() *Table {
 	return t
 }
 
+func (t *Table) IsFunction() bool {
+	return false
+}
+
+func (t *Table) AsFunction() *Closure {
+	return nil
+}
+
 func (t *Table) Set(k, v Value) bool {
 	if k == nil || k.IsNil() {
 		return false
@@ -250,4 +295,66 @@ func (t *Table) Get(k Value) Value {
 	} else {
 		return v
 	}
+}
+
+type Chunk struct {
+	Bytecode  []byte
+	Lines     []int
+	Constants []Value
+}
+
+type Closure struct {
+	Chunk Chunk
+	Name  string
+}
+
+func NewClosure(chunk Chunk, name string) *Closure {
+	return &Closure{
+		Chunk: chunk,
+		Name:  name,
+	}
+}
+
+func (closure *Closure) String() string {
+	return fmt.Sprintf("Function<%s>", closure.Name)
+}
+
+func (closure *Closure) IsNumber() bool {
+	return false
+}
+
+func (closure *Closure) AsNumber() float64 {
+	return 0
+}
+
+func (closure *Closure) IsBoolean() bool {
+	return false
+}
+
+func (closure *Closure) AsBoolean() bool {
+	return true
+}
+
+func (closure *Closure) IsString() bool {
+	return false
+}
+
+func (closure *Closure) IsNil() bool {
+	return false
+}
+
+func (closure *Closure) IsTable() bool {
+	return true
+}
+
+func (closure *Closure) AsTable() *Table {
+	panic("Internal error: cannot cast table as function")
+}
+
+func (closure *Closure) IsFunction() bool {
+	return true
+}
+
+func (closure *Closure) AsFunction() *Closure {
+	return closure
 }

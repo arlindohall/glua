@@ -8,9 +8,15 @@ import (
 	"os"
 )
 
+type CallFrame struct {
+	ip      int
+	stack   int
+	closure *value.Closure
+	context *CallFrame
+}
+
 type VM struct {
-	ip        int
-	chunk     compiler.Chunk
+	frame     *CallFrame
 	stack     []value.Value
 	stackSize int
 	globals   map[string]value.Value
@@ -19,23 +25,23 @@ type VM struct {
 
 func NewVm() VM {
 	return VM{
-		0,
-		compiler.Chunk{},
-		nil,
-		0,
-		make(map[string]value.Value),
-		glerror.GluaErrorChain{},
+		frame:     nil,
+		stack:     nil,
+		stackSize: 0,
+		globals:   make(map[string]value.Value),
+		err:       glerror.GluaErrorChain{},
 	}
 }
 
-func (vm *VM) Interpret(chunk compiler.Chunk) (value.Value, glerror.GluaErrorChain) {
-	vm.chunk = chunk
-	vm.ip = 0
-
-	// todo: call function
-	if TraceExecution {
-		fmt.Fprintln(os.Stderr, "========== <script> ==========")
+func (vm *VM) Interpret(chunk value.Chunk) (value.Value, glerror.GluaErrorChain) {
+	closure := value.Closure{
+		Name:  "",
+		Chunk: chunk,
 	}
+
+	vm.push(&closure)
+	vm.push(value.Number(0))
+	vm.call()
 
 	val := vm.run()
 
@@ -59,13 +65,12 @@ func (vm *VM) run() value.Value {
 				// exit or break to top level?
 				os.Exit(5)
 			}
-		case compiler.OpReturn:
-			return vm.pop()
 		case compiler.OpPop:
 			vm.pop()
 		case compiler.OpConstant:
 			c := byte(vm.readByte())
-			val := vm.chunk.Constants[c]
+			val := vm.getConstant(c)
+
 			vm.push(val)
 		case compiler.OpNil:
 			vm.push(value.Nil{})
@@ -123,12 +128,12 @@ func (vm *VM) run() value.Value {
 		case compiler.OpSetGlobal:
 			val := vm.peek()
 			i := vm.readByte()
-			name := vm.chunk.Constants[i]
+			name := vm.frame.closure.Chunk.Constants[i]
 
 			vm.globals[name.String()] = val
 		case compiler.OpGetGlobal:
 			i := vm.readByte()
-			name := vm.chunk.Constants[i].String()
+			name := vm.frame.closure.Chunk.Constants[i].String()
 
 			val := vm.globals[name]
 
@@ -158,14 +163,14 @@ func (vm *VM) run() value.Value {
 				lower := byte(vm.readByte())
 				dist := compiler.MergeBytes(upper, lower)
 
-				vm.ip += dist
+				vm.frame.ip += dist
 			}
 		case compiler.OpLoop:
 			upper := byte(vm.readByte())
 			lower := byte(vm.readByte())
 			dist := compiler.MergeBytes(upper, lower)
 
-			vm.ip -= dist
+			vm.frame.ip -= dist
 		case compiler.OpCreateTable:
 			vm.push(value.NewTable())
 		case compiler.OpInsertTable:
@@ -206,6 +211,15 @@ func (vm *VM) run() value.Value {
 
 			val := table.AsTable().Get(attribute)
 			vm.push(val)
+		case compiler.OpCall:
+			vm.call()
+		case compiler.OpReturn:
+			// todo: multiple return
+			if vm.frame.context == nil {
+				return vm.pop()
+			} else {
+				vm.returnFrom()
+			}
 		default:
 			return vm.error(fmt.Sprint("Do not know how to perform: ", op))
 		}
@@ -213,6 +227,49 @@ func (vm *VM) run() value.Value {
 		if !ok {
 			return value.Nil{}
 		}
+	}
+}
+
+func (vm *VM) call() {
+	arity := int(vm.pop().AsNumber())
+	stackBottom := vm.stackSize - arity - 1
+	closure := vm.stack[stackBottom].AsFunction()
+	enclosing := vm.frame
+	frame := CallFrame{
+		ip:      0,
+		stack:   stackBottom,
+		context: enclosing,
+		closure: closure,
+	}
+	vm.frame = &frame
+
+	vm.traceFunction()
+}
+
+func (vm *VM) returnFrom() {
+	val := vm.pop()
+
+	stack := vm.frame.stack
+	context := vm.frame.context
+
+	vm.frame = context
+	vm.stackSize = stack
+
+	for i := stack; i < vm.stackSize; i++ {
+		vm.stack[i] = nil
+	}
+
+	vm.push(val)
+
+	vm.traceFunction()
+}
+
+func (vm *VM) traceFunction() {
+	// todo: call function
+	if TraceExecution && vm.frame.closure.Name == "" {
+		fmt.Fprintln(os.Stderr, "========== <script> ==========")
+	} else if TraceExecution {
+		fmt.Fprintf(os.Stderr, "========== %s ==========\n", vm.frame.closure.Name)
 	}
 }
 
@@ -236,6 +293,10 @@ func (vm *VM) push(val value.Value) {
 	}
 
 	vm.stackSize += 1
+}
+
+func (vm *VM) getConstant(slot byte) value.Value {
+	return vm.frame.closure.Chunk.Constants[slot]
 }
 
 func (vm *VM) getLocal(slot byte) value.Value {
@@ -273,39 +334,43 @@ func (vm *VM) compare(compare func(float64, float64) bool) bool {
 	}
 }
 
-func (vm *VM) readByte() compiler.Op {
+func (vm *VM) readByte() byte {
 	c := vm.current()
 	vm.advance()
 	return c
 }
 
 func (vm *VM) advance() {
-	vm.ip += 1
+	vm.frame.ip += 1
 }
 
-func (vm *VM) previous() compiler.Op {
-	return vm.chunk.Bytecode[vm.ip-1]
+func (vm *VM) previous() byte {
+	return vm.frame.closure.Chunk.Bytecode[vm.frame.ip-1]
 }
 
-func (vm *VM) current() compiler.Op {
-	return vm.chunk.Bytecode[vm.ip]
+func (vm *VM) current() byte {
+	return vm.frame.closure.Chunk.Bytecode[vm.frame.ip]
 }
 
-func (vm *VM) next() compiler.Op {
-	return vm.chunk.Bytecode[vm.ip+1]
+func (vm *VM) next() byte {
+	return vm.frame.closure.Chunk.Bytecode[vm.frame.ip+1]
 }
 
 func (vm *VM) error(message string) value.Value {
-	vm.err.Append(RuntimeError{message})
+	vm.err.Append(RuntimeError{
+		message: message,
+		line:    vm.frame.closure.Chunk.Lines[vm.frame.ip],
+	})
 	return value.Nil{}
 }
 
 type RuntimeError struct {
 	message string
+	line    int
 }
 
 func (re RuntimeError) Error() string {
-	return fmt.Sprintf("Runtime error ---> %s", re.message)
+	return fmt.Sprintf("Runtime error [line=%d] ---> %s", re.line, re.message)
 }
 
 func (vm *VM) GetErrors() error {

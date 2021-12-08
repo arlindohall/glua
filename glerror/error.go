@@ -24,4 +24,10 @@ func (chain *GluaErrorChain) Append(err error) {
 	chain.errors = append(chain.errors, GluaError(err))
 }
 
+func (chain *GluaErrorChain) AppendAll(source *GluaErrorChain) {
+	for _, err := range source.errors {
+		chain.Append(err)
+	}
+}
+
 type GluaError error

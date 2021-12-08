@@ -20,7 +20,6 @@ go run . <filename>
 ## Missing Features List
 
 - Weak tables
-- Functions
 - Multiple return
 - For loops/iterators
 

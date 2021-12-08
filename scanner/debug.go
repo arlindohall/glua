@@ -57,6 +57,10 @@ func (tt TokenType) String() string {
 		return "TokenDo"
 	case TokenEnd:
 		return "TokenEnd"
+	case TokenFunction:
+		return "TokenFunction"
+	case TokenReturn:
+		return "TokenReturn"
 	case TokenAnd:
 		return "TokenAnd"
 	case TokenOr:
@@ -69,6 +73,10 @@ func (tt TokenType) String() string {
 		return "TokenLeftBracket"
 	case TokenRightBracket:
 		return "TokenRightBracket"
+	case TokenLeftParen:
+		return "TokenLeftParen"
+	case TokenRightParen:
+		return "TokenRightParen"
 	default:
 		return fmt.Sprint("UnrecognizedToken/", int(tt))
 	}

@@ -7,11 +7,16 @@ import (
 )
 
 func expectNoErrors(t *testing.T, text string) {
+	fmt.Println("~~~~~~~~~~ Running program ~~~~~~~~~~")
+	fmt.Println(text)
+	fmt.Println("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+
 	vm := interpreter.NewVm()
 	_, err := interpreter.FromString(&vm, text).Interpret()
 
 	if !err.IsEmpty() {
-		fmt.Println("Error running test: ", err)
+		fmt.Println("Error running test:")
+		fmt.Println(err)
 		t.FailNow()
 	}
 }
@@ -89,7 +94,8 @@ func TestEmptyStringTruthy(t *testing.T) {
 }
 
 func TestGlobalVariable(t *testing.T) {
-	text := `global x = 10
+	text := `
+	global x = 10
 	assert x == 10`
 
 	expectNoErrors(t, text)
@@ -127,7 +133,8 @@ func TestTableLiteralPairArgs(t *testing.T) {
 }
 
 func TestGetTableAttribute(t *testing.T) {
-	text := `x = {a=1}
+	text := `
+	x = {a=1}
 	assert x.a == 1
 	assert x.b == nil
 	`
@@ -136,7 +143,8 @@ func TestGetTableAttribute(t *testing.T) {
 }
 
 func TestSetTableAttribute(t *testing.T) {
-	text := `x = {}
+	text := `
+	x = {}
 	x.a = 1
 	assert x.a == 1
 	`
@@ -145,7 +153,8 @@ func TestSetTableAttribute(t *testing.T) {
 }
 
 func TestGetTableBracketNotation(t *testing.T) {
-	text := `x = {}
+	text := `
+	x = {}
 	x[4] = 1
 	assert x[4] == 1`
 
@@ -153,7 +162,8 @@ func TestGetTableBracketNotation(t *testing.T) {
 }
 
 func TestChainedAssignment(t *testing.T) {
-	text := `assert x = y = true
+	text := `
+	assert x = y = true
 	assert t = u = {}
 	assert t.x = u.x = true
 	assert (t[true] = u[true] = 10) == 10
@@ -163,7 +173,8 @@ func TestChainedAssignment(t *testing.T) {
 }
 
 func TestLocalScope(t *testing.T) {
-	text := `global x = 10
+	text := `
+	global x = 10
 	do
 		assert x == 10
 		local x = 5
@@ -172,6 +183,18 @@ func TestLocalScope(t *testing.T) {
 		assert x == 15
 	end
 	assert x == 10`
+
+	expectNoErrors(t, text)
+}
+
+func TestBasicFunction(t *testing.T) {
+	text := `
+	function f()
+		return 1
+	end
+
+	assert f() == 1
+	`
 
 	expectNoErrors(t, text)
 }

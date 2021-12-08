@@ -12,6 +12,7 @@ const (
 	OpAdd = iota
 	OpAssert
 	OpAnd
+	OpCall
 	OpConstant
 	OpCreateTable
 	OpDivide
@@ -36,14 +37,14 @@ const (
 	OpInsertTable
 	OpSubtract
 	OpZero
+
+	PrintBytecode bool = true
 )
 
 const (
 	RunFileMode = iota
 	ReplMode
 )
-
-type Op byte
 
 type ReturnMode int
 
@@ -55,20 +56,17 @@ type Local struct {
 type compiler struct {
 	text   []scanner.Token
 	curr   int
-	chunk  Chunk
+	chunk  value.Chunk
+	name   string
 	locals []Local
 	scope  int
 	err    glerror.GluaErrorChain
 	mode   ReturnMode
-}
-
-type Chunk struct {
-	Bytecode  []Op
-	Constants []value.Value
+	parent *compiler
 }
 
 type Function struct {
-	Chunk Chunk
+	Chunk value.Chunk
 	Name  string
 }
 
@@ -76,8 +74,9 @@ func Compile(text []scanner.Token, mode ReturnMode) (Function, glerror.GluaError
 	compiler := compiler{
 		text:   text,
 		curr:   0,
-		chunk:  Chunk{},
-		locals: nil,
+		chunk:  value.Chunk{},
+		name:   "",
+		locals: []Local{{"", 0}}, // Top-level function has no name
 		scope:  0,
 		err:    glerror.GluaErrorChain{},
 		mode:   mode,
@@ -101,9 +100,11 @@ func (compiler *compiler) compile() {
 
 func (compiler *compiler) peek() scanner.Token {
 	if compiler.curr+1 >= len(compiler.text) {
+		// todo: when pulling one token at a time use the line of the last token
 		return scanner.Token{
 			Type: scanner.TokenEof,
 			Text: "",
+			Line: -1,
 		}
 	}
 
@@ -115,10 +116,15 @@ func (compiler *compiler) current() scanner.Token {
 		return scanner.Token{
 			Type: scanner.TokenEof,
 			Text: "",
+			Line: -1,
 		}
 	}
 
 	return compiler.text[compiler.curr]
+}
+
+func (compiler *compiler) check(tt scanner.TokenType) bool {
+	return compiler.current().Type == tt
 }
 
 func (compiler *compiler) declaration() Node {
@@ -133,7 +139,7 @@ func (compiler *compiler) declaration() Node {
 	}
 
 	// Lua allows semicolons but they are not required
-	if compiler.current().Type == scanner.TokenSemicolon {
+	if compiler.check(scanner.TokenSemicolon) {
 		compiler.consume(scanner.TokenSemicolon)
 	}
 
@@ -144,7 +150,7 @@ func (compiler *compiler) global() Node {
 	compiler.consume(scanner.TokenGlobal)
 	decl := GlobalDeclaration{Identifier(compiler.identifier()), nil}
 
-	if compiler.current().Type == scanner.TokenEqual {
+	if compiler.check(scanner.TokenEqual) {
 		compiler.consume(scanner.TokenEqual)
 		var assignment = compiler.assignment()
 		decl.assignment = &assignment
@@ -157,7 +163,7 @@ func (compiler *compiler) local() Node {
 	compiler.consume(scanner.TokenLocal)
 	decl := LocalDeclaration{Identifier(compiler.identifier()), nil}
 
-	if compiler.current().Type == scanner.TokenEqual {
+	if compiler.check(scanner.TokenEqual) {
 		compiler.consume(scanner.TokenEqual)
 		var assignment = compiler.assignment()
 		decl.assignment = &assignment
@@ -169,17 +175,58 @@ func (compiler *compiler) local() Node {
 func (compiler *compiler) statement() Node {
 	switch compiler.current().Type {
 	case scanner.TokenAssert:
-		compiler.advance()
+		compiler.consume(scanner.TokenAssert)
 		return AssertStatement{
 			value: compiler.expression(),
 		}
+	case scanner.TokenFunction:
+		return compiler.function()
 	case scanner.TokenWhile:
 		return compiler.whileStatement()
 	case scanner.TokenDo:
 		return compiler.block()
+	case scanner.TokenReturn:
+		return compiler.returnStatement()
 	default:
 		return Expression{compiler.expression()}
 	}
+}
+
+func (compiler *compiler) function() Node {
+	compiler.consume(scanner.TokenFunction)
+
+	name := compiler.identifier()
+
+	parameters := compiler.parameters()
+	var declarations []Node
+
+	for !compiler.check(scanner.TokenEnd) {
+		declarations = append(declarations, compiler.declaration())
+	}
+
+	compiler.consume(scanner.TokenEnd)
+
+	var body Node
+	if len(declarations) == 1 {
+		body = declarations[0]
+	} else {
+		body = BlockStatement{declarations}
+	}
+
+	return FunctionNode{name, parameters, body}
+}
+
+func (compiler *compiler) parameters() []Identifier {
+	compiler.consume(scanner.TokenLeftParen)
+
+	var identifiers []Identifier
+	for !compiler.check(scanner.TokenRightParen) {
+		identifiers = append(identifiers, compiler.identifier())
+	}
+
+	compiler.consume(scanner.TokenRightParen)
+
+	return identifiers
 }
 
 func (compiler *compiler) block() BlockStatement {
@@ -221,8 +268,16 @@ func (compiler *compiler) whileStatement() Node {
 	compiler.consume(scanner.TokenWhile)
 
 	return WhileStatement{
-		compiler.expression(),
-		compiler.block(),
+		condition: compiler.expression(),
+		body:      compiler.block(),
+	}
+}
+
+func (compiler *compiler) returnStatement() Node {
+	compiler.consume(scanner.TokenReturn)
+
+	return ReturnStatement{
+		value: compiler.expression(),
 	}
 }
 
@@ -232,7 +287,7 @@ func (compiler *compiler) expression() Node {
 
 func (compiler *compiler) assignment() Node {
 	logicOr := compiler.logicOr()
-	if compiler.current().Type == scanner.TokenEqual {
+	if compiler.check(scanner.TokenEqual) {
 		compiler.consume(scanner.TokenEqual)
 		return logicOr.assign(compiler)
 	} else {
@@ -256,7 +311,7 @@ func (compiler *compiler) logicOr() Node {
 	lor := LogicOr{node, nil}
 
 	for {
-		if compiler.current().Type == scanner.TokenOr {
+		if compiler.check(scanner.TokenOr) {
 			compiler.advance()
 			lor.or = append(lor.or, compiler.logicAnd())
 		} else {
@@ -275,7 +330,7 @@ func (compiler *compiler) logicAnd() Node {
 	land := LogicAnd{node, nil}
 
 	for {
-		if compiler.current().Type == scanner.TokenAnd {
+		if compiler.check(scanner.TokenAnd) {
 			compiler.advance()
 			land.and = append(land.and, compiler.comparison())
 		} else {
@@ -395,7 +450,7 @@ func (compiler *compiler) unary() Node {
 
 func (compiler *compiler) exponent() Node {
 	call := compiler.call()
-	if compiler.current().Type == scanner.TokenCaret {
+	if compiler.check(scanner.TokenCaret) {
 		compiler.consume(scanner.TokenCaret)
 		exp := compiler.call()
 		return Exponent{call, &exp}
@@ -427,6 +482,13 @@ func (compiler *compiler) call() Node {
 				primary,
 				attribute,
 			}
+		case scanner.TokenLeftParen:
+			args := compiler.arguments()
+
+			primary = Call{
+				base:      primary,
+				arguments: args,
+			}
 		}
 	}
 
@@ -435,11 +497,29 @@ func (compiler *compiler) call() Node {
 
 func (compiler *compiler) isCall() bool {
 	switch compiler.current().Type {
-	case scanner.TokenDot, scanner.TokenLeftBracket:
+	case scanner.TokenDot, scanner.TokenLeftBracket, scanner.TokenLeftParen:
 		return true
 	default:
 		return false
 	}
+}
+
+func (compiler *compiler) arguments() []Node {
+	var args []Node
+
+	compiler.consume(scanner.TokenLeftParen)
+
+	for !compiler.check(scanner.TokenRightParen) {
+		args = append(args, compiler.expression())
+
+		if !compiler.check(scanner.TokenRightParen) {
+			compiler.consume(scanner.TokenComma)
+		}
+	}
+
+	compiler.consume(scanner.TokenRightParen)
+
+	return args
 }
 
 func (compiler *compiler) primary() Node {
@@ -524,9 +604,9 @@ func (compiler *compiler) tableLiteral() TableLiteral {
 func (compiler *compiler) pair() Node {
 	fmt.Println(compiler.current().Type, compiler.peek().Type)
 	switch {
-	case compiler.current().Type == scanner.TokenLeftBracket:
+	case compiler.check(scanner.TokenLeftBracket):
 		return compiler.literalPair()
-	case compiler.current().Type == scanner.TokenIdentifier && compiler.peek().Type == scanner.TokenEqual:
+	case compiler.check(scanner.TokenIdentifier) && compiler.peek().Type == scanner.TokenEqual:
 		return compiler.stringPair()
 	default:
 		return compiler.value()
@@ -543,7 +623,7 @@ func (compiler *compiler) literalPair() Node {
 
 	value := compiler.expression()
 
-	if compiler.current().Type == scanner.TokenComma {
+	if compiler.check(scanner.TokenComma) {
 		compiler.consume(scanner.TokenComma)
 	}
 
@@ -559,7 +639,7 @@ func (compiler *compiler) stringPair() Node {
 
 	expr := compiler.expression()
 
-	if compiler.current().Type == scanner.TokenComma {
+	if compiler.check(scanner.TokenComma) {
 		compiler.consume(scanner.TokenComma)
 	}
 
@@ -572,7 +652,7 @@ func (compiler *compiler) stringPair() Node {
 func (compiler *compiler) value() Node {
 	expr := compiler.expression()
 
-	if compiler.current().Type == scanner.TokenComma {
+	if compiler.check(scanner.TokenComma) {
 		compiler.consume(scanner.TokenComma)
 	}
 
@@ -607,15 +687,16 @@ func (compiler *compiler) makeConstant(value value.Value) byte {
 }
 
 func (compiler *compiler) emitBytes(b1, b2 byte) {
-	compiler.chunk.Bytecode = append(compiler.chunk.Bytecode, Op(b1))
-	compiler.chunk.Bytecode = append(compiler.chunk.Bytecode, Op(b2))
+	compiler.emitByte(b1)
+	compiler.emitByte(b2)
 }
 
 func (compiler *compiler) emitByte(b byte) {
-	compiler.chunk.Bytecode = append(compiler.chunk.Bytecode, Op(b))
+	compiler.chunk.Bytecode = append(compiler.chunk.Bytecode, b)
+	compiler.chunk.Lines = append(compiler.chunk.Lines, compiler.current().Line)
 }
 
-func (compiler *compiler) emitJump(op Op) {
+func (compiler *compiler) emitJump(op byte) {
 	compiler.emitByte(byte(op))
 	compiler.emitBytes(0, 0)
 }
@@ -643,8 +724,8 @@ func (compiler *compiler) patchJump(source, dest int) {
 	}
 
 	upper, lower := SplitBytes(dist)
-	compiler.chunk.Bytecode[source+1] = Op(upper)
-	compiler.chunk.Bytecode[source+2] = Op(lower)
+	compiler.chunk.Bytecode[source+1] = upper
+	compiler.chunk.Bytecode[source+2] = lower
 }
 
 func (compiler *compiler) emitReturn() {
@@ -663,21 +744,32 @@ func (compiler *compiler) end() (Function, glerror.GluaErrorChain) {
 		return Function{}, compiler.err
 	}
 
-	return Function{
-		compiler.chunk,
-		"",
-	}, compiler.err
+	// todo: get name from compiler
+	function := Function{
+		Chunk: compiler.chunk,
+		Name:  compiler.name,
+	}
+
+	if PrintBytecode {
+		DebugPrint(function)
+	}
+
+	return function, compiler.err
 }
 
 func (compiler *compiler) error(message string) {
-	compiler.err.Append(CompileError{message})
+	compiler.err.Append(CompileError{
+		message: message,
+		line:    compiler.current().Line,
+	})
 }
 
 type CompileError struct {
 	message string
+	line    int
 }
 
 // todo: track line numbers in tokens and print error line
 func (ce CompileError) Error() string {
-	return fmt.Sprintf("Compile error ---> %s", ce.message)
+	return fmt.Sprintf("Compile error [line=%d] ---> %s", ce.line, ce.message)
 }

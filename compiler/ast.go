@@ -1,6 +1,7 @@
 package compiler
 
 import (
+	"arlindohall/glua/glerror"
 	"arlindohall/glua/scanner"
 	"arlindohall/glua/value"
 	"fmt"
@@ -17,6 +18,62 @@ type Node interface {
 
 func PrintTree(node *Node) {
 	(*node).printTree(0)
+}
+
+type FunctionNode struct {
+	name       Identifier
+	parameters []Identifier
+	body       Node
+}
+
+func (function FunctionNode) Emit(parent *compiler) {
+	var parameters []Local
+
+	for _, param := range function.parameters {
+		parameters = append(parameters, Local{param, 0})
+	}
+
+	child := &compiler{
+		text:   parent.text,
+		curr:   parent.curr,
+		chunk:  value.Chunk{},
+		name:   string(function.name),
+		locals: parameters,
+		scope:  0,
+		err:    glerror.GluaErrorChain{},
+		mode:   parent.mode,
+		parent: parent,
+	}
+
+	function.body.Emit(child)
+
+	result, err := child.end()
+
+	if !err.IsEmpty() {
+		parent.err.AppendAll(&err)
+		return
+	}
+
+	parent.locals = append(parent.locals, Local{function.name, parent.scope})
+	c := parent.makeConstant(value.NewClosure(result.Chunk, string(function.name)))
+	parent.emitBytes(OpConstant, c)
+}
+
+func (function FunctionNode) printTree(indent int) {
+	printIndent(indent, "Function")
+	printIndent(indent+1, function.name)
+
+	printIndent(indent+1, "Parameters")
+	for _, p := range function.parameters {
+		printIndent(indent+2, p)
+	}
+
+	printIndent(indent+1, "Body")
+	function.body.printTree(indent + 2)
+}
+
+func (function FunctionNode) assign(compiler *compiler) Node {
+	panic("Cannot assign to function declaration")
 }
 
 type GlobalDeclaration struct {
@@ -46,9 +103,9 @@ func (declaration GlobalDeclaration) printTree(indent int) {
 	}
 }
 
-func (declaration GlobalDeclaration) assign(comp *compiler) Node {
+func (declaration GlobalDeclaration) assign(compiler *compiler) Node {
 	// todo should we hook into this for global variables?
-	comp.error("Cannot assign to global variable declaration")
+	compiler.error("Cannot assign to global variable declaration")
 	return declaration
 }
 
@@ -79,9 +136,9 @@ func (declaration LocalDeclaration) printTree(indent int) {
 	}
 }
 
-func (declaration LocalDeclaration) assign(comp *compiler) Node {
+func (declaration LocalDeclaration) assign(compiler *compiler) Node {
 	// todo should we hook into this for local variables?
-	comp.error("Cannot assign to global variable declaration")
+	compiler.error("Cannot assign to global variable declaration")
 	return declaration
 }
 
@@ -114,8 +171,27 @@ func (statement WhileStatement) printTree(indent int) {
 	statement.body.printTree(indent + 1)
 }
 
-func (statement WhileStatement) assign(comp *compiler) Node {
-	comp.error("Cannot assign to while statement")
+func (statement WhileStatement) assign(compiler *compiler) Node {
+	compiler.error("Cannot assign to while statement")
+	return statement
+}
+
+type ReturnStatement struct {
+	value Node
+}
+
+func (statement ReturnStatement) Emit(compiler *compiler) {
+	statement.value.Emit(compiler)
+	compiler.emitByte(OpReturn)
+}
+
+func (statement ReturnStatement) printTree(indent int) {
+	printIndent(indent, "Return")
+	statement.value.printTree(indent + 1)
+}
+
+func (statement ReturnStatement) assign(compiler *compiler) Node {
+	compiler.error("Cannot assign to return statement")
 	return statement
 }
 
@@ -140,9 +216,9 @@ func (statement BlockStatement) printTree(indent int) {
 	}
 }
 
-func (statement BlockStatement) assign(comp *compiler) Node {
+func (statement BlockStatement) assign(compiler *compiler) Node {
 	// todo should blocks return their last value and thus assign if it's a table?
-	comp.error("Cannot assign to block statement")
+	compiler.error("Cannot assign to block statement")
 	return statement
 }
 
@@ -160,8 +236,8 @@ func (statement AssertStatement) printTree(indent int) {
 	statement.value.printTree(indent + 1)
 }
 
-func (statement AssertStatement) assign(comp *compiler) Node {
-	comp.error("Cannot assign to expression")
+func (statement AssertStatement) assign(compiler *compiler) Node {
+	compiler.error("Cannot assign to expression")
 	return statement
 }
 
@@ -179,8 +255,8 @@ func (statement Expression) printTree(indent int) {
 	statement.expression.printTree(indent + 1)
 }
 
-func (statement Expression) assign(comp *compiler) Node {
-	comp.error("Cannot assign to expression")
+func (statement Expression) assign(compiler *compiler) Node {
+	compiler.error("Cannot assign to expression")
 	return statement
 }
 
@@ -207,11 +283,11 @@ func (assignment VariableAssignment) printTree(indent int) {
 	assignment.value.printTree(indent + 1)
 }
 
-func (assignment VariableAssignment) assign(comp *compiler) Node {
+func (assignment VariableAssignment) assign(compiler *compiler) Node {
 	target := assignment.name
 	intermediate := assignment.value
 
-	value := intermediate.assign(comp)
+	value := intermediate.assign(compiler)
 
 	return VariableAssignment{
 		target,
@@ -239,8 +315,8 @@ func (assignment TableAssignment) printTree(indent int) {
 	assignment.value.printTree(indent + 1)
 }
 
-func (assignment TableAssignment) assign(comp *compiler) Node {
-	comp.error("Cannot assign to assignment (yet)")
+func (assignment TableAssignment) assign(compiler *compiler) Node {
+	compiler.error("Cannot assign to assignment (yet)")
 	return assignment
 }
 
@@ -262,11 +338,11 @@ func (accessor TableAccessor) printTree(indent int) {
 	accessor.attribute.printTree(indent + 1)
 }
 
-func (accessor TableAccessor) assign(comp *compiler) Node {
+func (accessor TableAccessor) assign(compiler *compiler) Node {
 	return TableAssignment{
 		table:     accessor.table,
 		attribute: accessor.attribute,
-		value:     comp.expression(),
+		value:     compiler.expression(),
 	}
 }
 
@@ -297,8 +373,8 @@ func (logicOr LogicOr) printTree(indent int) {
 	}
 }
 
-func (logicOr LogicOr) assign(comp *compiler) Node {
-	comp.error("Cannot assign to logical or")
+func (logicOr LogicOr) assign(compiler *compiler) Node {
+	compiler.error("Cannot assign to logical or")
 	return logicOr
 }
 
@@ -328,8 +404,8 @@ func (logicAnd LogicAnd) printTree(indent int) {
 	}
 }
 
-func (logicAnd LogicAnd) assign(comp *compiler) Node {
-	comp.error("Cannot assign to logical and")
+func (logicAnd LogicAnd) assign(compiler *compiler) Node {
+	compiler.error("Cannot assign to logical and")
 	return logicAnd
 }
 
@@ -369,8 +445,8 @@ func (comparison Comparison) printTree(indent int) {
 	}.printTree(indent + 1)
 }
 
-func (comparison Comparison) assign(comp *compiler) Node {
-	comp.error("Cannot assign to comparison")
+func (comparison Comparison) assign(compiler *compiler) Node {
+	compiler.error("Cannot assign to comparison")
 	return comparison
 }
 
@@ -414,8 +490,8 @@ func (term Term) printTree(indent int) {
 	}.printTree(indent + 1)
 }
 
-func (term Term) assign(comp *compiler) Node {
-	comp.error("Cannot assign to term")
+func (term Term) assign(compiler *compiler) Node {
+	compiler.error("Cannot assign to term")
 	return term
 }
 
@@ -459,8 +535,8 @@ func (factor Factor) printTree(indent int) {
 	}.printTree(indent + 1)
 }
 
-func (factor Factor) assign(comp *compiler) Node {
-	comp.error("Cannot assign to factor")
+func (factor Factor) assign(compiler *compiler) Node {
+	compiler.error("Cannot assign to factor")
 	return factor
 }
 
@@ -483,8 +559,8 @@ func (unary NegateUnary) printTree(indent int) {
 	unary.unary.printTree(indent + 1)
 }
 
-func (unary NegateUnary) assign(comp *compiler) Node {
-	comp.error("Cannot assign to unary")
+func (unary NegateUnary) assign(compiler *compiler) Node {
+	compiler.error("Cannot assign to unary")
 	return unary
 }
 
@@ -502,8 +578,8 @@ func (unary NotUnary) printTree(indent int) {
 	unary.unary.printTree(indent + 1)
 }
 
-func (unary NotUnary) assign(comp *compiler) Node {
-	comp.error("Cannot assign to unary")
+func (unary NotUnary) assign(compiler *compiler) Node {
+	compiler.error("Cannot assign to unary")
 	return unary
 }
 
@@ -531,27 +607,46 @@ func (exponent Exponent) printTree(indent int) {
 	}
 }
 
-func (exponent Exponent) assign(comp *compiler) Node {
-	comp.error("Cannot assign to exponent")
+func (exponent Exponent) assign(compiler *compiler) Node {
+	compiler.error("Cannot assign to exponent")
 	return exponent
 }
 
 type Call struct {
 	base      Node
-	accessors []Identifier
+	arguments []Node
 }
 
 func (call Call) Emit(compiler *compiler) {
-	fmt.Println(call.base, call.accessors)
-	panic("emit call")
+	call.base.Emit(compiler)
+
+	arity := 0
+	for _, arg := range call.arguments {
+		arg.Emit(compiler)
+		arity++
+	}
+
+	c := compiler.makeConstant(value.Number(arity))
+	compiler.emitBytes(OpConstant, c)
+
+	compiler.emitByte(OpCall)
 }
 
 func (call Call) printTree(indent int) {
-	panic("print call")
+	printIndent(indent, "Call")
+	call.base.printTree(indent + 1)
+
+	if len(call.arguments) > 0 {
+		printIndent(indent+1, "Arguments")
+	}
+
+	for _, arg := range call.arguments {
+		arg.printTree(indent + 2)
+	}
 }
 
-func (call Call) assign(comp *compiler) Node {
-	comp.error("Cannot assign to function call")
+func (call Call) assign(compiler *compiler) Node {
+	compiler.error("Cannot assign to function call")
 	return call
 }
 
@@ -568,8 +663,8 @@ func (primary LiteralPrimary) printTree(indent int) {
 	printIndent(indent, primary.value)
 }
 
-func (primary LiteralPrimary) assign(comp *compiler) Node {
-	comp.error("Cannot assign to literal")
+func (primary LiteralPrimary) assign(compiler *compiler) Node {
+	compiler.error("Cannot assign to literal")
 	return primary
 }
 
@@ -617,10 +712,10 @@ func (primary VariablePrimary) printTree(indent int) {
 	printIndent(indent, fmt.Sprintf("Global/%s", string(primary.name)))
 }
 
-func (primary VariablePrimary) assign(comp *compiler) Node {
+func (primary VariablePrimary) assign(compiler *compiler) Node {
 	return VariableAssignment{
 		name:  primary.name,
-		value: comp.expression(),
+		value: compiler.expression(),
 	}
 }
 
@@ -675,8 +770,8 @@ func (literal TableLiteral) printTree(indent int) {
 	}
 }
 
-func (literal TableLiteral) assign(comp *compiler) Node {
-	comp.error("Cannot assign to table literal")
+func (literal TableLiteral) assign(compiler *compiler) Node {
+	compiler.error("Cannot assign to table literal")
 	return literal
 }
 
@@ -694,8 +789,8 @@ func (val Value) printTree(indent int) {
 	val.value.printTree(indent + 1)
 }
 
-func (val Value) assign(comp *compiler) Node {
-	comp.error("Cannot assign to table value")
+func (val Value) assign(compiler *compiler) Node {
+	compiler.error("Cannot assign to table value")
 	return val
 }
 
@@ -716,8 +811,8 @@ func (pair StringPair) printTree(indent int) {
 	pair.value.printTree(indent + 1)
 }
 
-func (pair StringPair) assign(comp *compiler) Node {
-	comp.error("Cannot assign to table literal pair")
+func (pair StringPair) assign(compiler *compiler) Node {
+	compiler.error("Cannot assign to table literal pair")
 	return pair
 }
 
@@ -738,8 +833,8 @@ func (pair LiteralPair) printTree(indent int) {
 	pair.value.printTree(indent + 1)
 }
 
-func (pair LiteralPair) assign(comp *compiler) Node {
-	comp.error("Cannot assign to table literal pair")
+func (pair LiteralPair) assign(compiler *compiler) Node {
+	compiler.error("Cannot assign to table literal pair")
 	return pair
 }
 

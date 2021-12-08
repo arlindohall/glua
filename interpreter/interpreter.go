@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	PrintTokens, PrintBytecode, TraceExecution bool = true, true, true
+	PrintTokens, TraceExecution bool = true, true
 )
 
 // todo: Don't provide mode
@@ -75,10 +75,6 @@ func (interp *BufioInterpreter) Interpret() (value.Value, glerror.GluaErrorChain
 
 	if !err.IsEmpty() {
 		return nil, err
-	}
-
-	if PrintBytecode {
-		compiler.DebugPrint(function)
 	}
 
 	// todo: use a VM struct that is re-used on Repl
