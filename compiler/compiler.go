@@ -671,6 +671,7 @@ func (compiler *compiler) consume(tt scanner.TokenType) {
 	compiler.advance()
 }
 
+// todo: use longer values for more constants
 func (compiler *compiler) makeConstant(value value.Value) byte {
 	for i, c := range compiler.chunk.Constants {
 		if c == value {

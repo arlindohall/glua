@@ -20,6 +20,7 @@ go run . <filename>
 ## Missing Features List
 
 - Weak tables
+- Closures/upvalues
 - Multiple return
 - For loops/iterators
 
@@ -34,6 +35,7 @@ Program := Declaration +
 # use them to deliniate the end of an expression
 Declaration := GlobalDeclaration
     | LocalDeclaration
+    | FunctionDeclaration
     | Statement ( ';' )?
 
 Statement := AssertStatement

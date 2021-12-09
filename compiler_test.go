@@ -198,3 +198,13 @@ func TestBasicFunction(t *testing.T) {
 
 	expectNoErrors(t, text)
 }
+
+func TestFunctionOneArg(t *testing.T) {
+	text := `
+	function f(x) return x + 1 end
+	f(1)
+	assert f(1) == 2
+	`
+
+	expectNoErrors(t, text)
+}

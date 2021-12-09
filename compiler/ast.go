@@ -27,7 +27,7 @@ type FunctionNode struct {
 }
 
 func (function FunctionNode) Emit(parent *compiler) {
-	var parameters []Local
+	parameters := []Local{{function.name, 0}}
 
 	for _, param := range function.parameters {
 		parameters = append(parameters, Local{param, 0})
@@ -54,9 +54,17 @@ func (function FunctionNode) Emit(parent *compiler) {
 		return
 	}
 
-	parent.locals = append(parent.locals, Local{function.name, parent.scope})
-	c := parent.makeConstant(value.NewClosure(result.Chunk, string(function.name)))
-	parent.emitBytes(OpConstant, c)
+	if parent.scope > 0 {
+		parent.locals = append(parent.locals, Local{function.name, parent.scope})
+		c := parent.makeConstant(value.NewClosure(result.Chunk, string(function.name)))
+		parent.emitBytes(OpConstant, c)
+	} else {
+		fn := parent.makeConstant(value.StringVal(function.name))
+		cl := parent.makeConstant(value.NewClosure(result.Chunk, string(function.name)))
+		parent.emitBytes(OpConstant, cl)
+		parent.emitBytes(OpSetGlobal, fn)
+		parent.emitByte(OpPop)
+	}
 }
 
 func (function FunctionNode) printTree(indent int) {

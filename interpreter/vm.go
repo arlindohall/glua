@@ -232,6 +232,7 @@ func (vm *VM) run() value.Value {
 
 func (vm *VM) call() {
 	arity := int(vm.pop().AsNumber())
+	// stack=[x, y, func, a, b, c]; stackSize=6; arity=3
 	stackBottom := vm.stackSize - arity - 1
 	closure := vm.stack[stackBottom].AsFunction()
 	enclosing := vm.frame
@@ -249,6 +250,7 @@ func (vm *VM) call() {
 func (vm *VM) returnFrom() {
 	val := vm.pop()
 
+	// stack=[x, y, func, a, b, c, retval]; frame.stack=2
 	stack := vm.frame.stack
 	context := vm.frame.context
 
@@ -300,11 +302,11 @@ func (vm *VM) getConstant(slot byte) value.Value {
 }
 
 func (vm *VM) getLocal(slot byte) value.Value {
-	return vm.stack[slot]
+	return vm.stack[vm.frame.stack+int(slot)]
 }
 
 func (vm *VM) setLocal(slot byte, val value.Value) {
-	vm.stack[slot] = val
+	vm.stack[vm.frame.stack+int(slot)] = val
 }
 
 func (vm *VM) arithmetic(name string, op func(float64, float64) float64) bool {
