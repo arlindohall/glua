@@ -21,6 +21,8 @@ type Glua interface {
 	Interpret() (value.Value, glerror.GluaErrorChain)
 }
 
+// todo: it's weird to pass in the vm
+// instead have the interpreter be persistent and pass in only the string
 type BufioInterpreter struct {
 	text *bufio.Reader
 	mode compiler.ReturnMode

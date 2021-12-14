@@ -243,10 +243,10 @@ func (vm *VM) run() value.Value {
 			vm.call()
 		case compiler.OpReturn:
 			// todo: multiple return
-			if vm.frame.context == nil {
+			vm.returnFrom()
+
+			if vm.frame == nil {
 				return vm.pop()
-			} else {
-				vm.returnFrom()
 			}
 		default:
 			return vm.error(fmt.Sprint("Do not know how to perform: ", compiler.ByteName(op)))
@@ -294,7 +294,9 @@ func (vm *VM) returnFrom() {
 
 	vm.push(val)
 
-	vm.traceFunction()
+	if vm.frame != nil {
+		vm.traceFunction()
+	}
 }
 
 func (vm *VM) clearStack(stack int) {
