@@ -55,8 +55,10 @@ func ByteName(op byte) string {
 		return "OpLoop"
 	case OpEquals:
 		return "OpEquals"
-	case OpLessThan:
-		return "OpLessThan"
+	case OpLess:
+		return "OpLess"
+	case OpGreater:
+		return "OpGreater"
 	case OpAdd:
 		return "OpAdd"
 	case OpSubtract:
@@ -95,7 +97,7 @@ func DebugPrint(function Function) {
 			OpCloseUpvalues, OpGetUpvalue, OpSetUpvalue:
 			print = printConstant
 		case OpAdd, OpSubtract, OpNot, OpNegate, OpMult, OpDivide, OpNil,
-			OpReturn, OpPop, OpAssert, OpEquals, OpLessThan, OpAnd, OpOr,
+			OpReturn, OpPop, OpAssert, OpEquals, OpLess, OpGreater, OpAnd, OpOr,
 			OpCreateTable, OpSetTable, OpInsertTable, OpInitTable, OpGetTable, OpZero,
 			OpCall, OpClosure:
 			print = printInstruction

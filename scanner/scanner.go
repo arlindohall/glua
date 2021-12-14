@@ -195,7 +195,7 @@ func (scanner *scanner) scanToken() (Token, error) {
 		return scanner.makeToken("!", TokenBang), nil
 	case scanner.check('<'):
 		if scanner.check('=') {
-			return scanner.makeToken("=", TokenEqual), nil
+			return scanner.makeToken("<=", TokenLessEqual), nil
 		} else {
 			return scanner.makeToken("<", TokenLess), nil
 		}

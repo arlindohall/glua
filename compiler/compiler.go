@@ -1,6 +1,7 @@
 package compiler
 
 import (
+	"arlindohall/glua/constants"
 	"arlindohall/glua/glerror"
 	"arlindohall/glua/scanner"
 	"arlindohall/glua/value"
@@ -24,8 +25,9 @@ const (
 	OpGetLocal
 	OpGetTable
 	OpGetUpvalue
+	OpGreater
 	OpJumpIfFalse
-	OpLessThan
+	OpLess
 	OpLoop
 	OpMult
 	OpNegate
@@ -42,13 +44,6 @@ const (
 	OpInsertTable
 	OpSubtract
 	OpZero
-
-	PrintBytecode bool = true
-)
-
-const (
-	RunFileMode = iota
-	ReplMode
 )
 
 type ReturnMode int
@@ -103,7 +98,7 @@ func Compile(text []scanner.Token, mode ReturnMode) (Function, glerror.GluaError
 func (compiler *compiler) compile() {
 	for compiler.current().Type != scanner.TokenEof {
 		decl := compiler.declaration()
-		if DebugAst {
+		if constants.DebugAst {
 			var node Node = decl
 			PrintTree(&node)
 		}
@@ -765,12 +760,22 @@ func (compiler *compiler) patchJump(source, dest int) {
 }
 
 func (compiler *compiler) emitReturn() {
-	last := len(compiler.chunk.Bytecode) - 1
-	if compiler.mode == ReplMode && compiler.chunk.Bytecode[last] == OpPop {
-		compiler.chunk.Bytecode[last] = OpReturn
-	} else {
+	if !compiler.patchReturn() {
 		compiler.emitBytes(OpNil, OpReturn)
 	}
+}
+
+func (compiler *compiler) patchReturn() bool {
+	last := len(compiler.chunk.Bytecode) - 1
+
+	shouldPatch := compiler.mode == constants.ReplMode &&
+		last >= 0 &&
+		compiler.chunk.Bytecode[last] == OpPop
+	if shouldPatch {
+		compiler.chunk.Bytecode[last] = OpReturn
+	}
+
+	return shouldPatch
 }
 
 func (compiler *compiler) end() (Function, glerror.GluaErrorChain) {
@@ -787,7 +792,7 @@ func (compiler *compiler) end() (Function, glerror.GluaErrorChain) {
 		Upvalues: compiler.upvalues,
 	}
 
-	if PrintBytecode {
+	if constants.PrintBytecode {
 		DebugPrint(function)
 	}
 

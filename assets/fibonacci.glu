@@ -1,0 +1,10 @@
+
+function fib(x)
+    while x <= 2 do
+        return 1
+    end
+
+    return fib(x-1) + fib(x-2)
+end
+
+return fib(35)

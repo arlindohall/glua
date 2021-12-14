@@ -2,6 +2,7 @@ package interpreter
 
 import (
 	"arlindohall/glua/compiler"
+	"arlindohall/glua/constants"
 	"arlindohall/glua/glerror"
 	"arlindohall/glua/value"
 	"fmt"
@@ -50,7 +51,7 @@ func (vm *VM) run() value.Value {
 	for {
 		op := vm.readByte()
 
-		if TraceExecution {
+		if constants.TraceExecution {
 			DebugTrace(vm)
 		}
 
@@ -74,8 +75,10 @@ func (vm *VM) run() value.Value {
 			vm.push(value.Nil{})
 		case compiler.OpZero:
 			vm.push(value.Number(0))
-		case compiler.OpLessThan:
+		case compiler.OpLess:
 			ok = vm.compare(func(v1, v2 float64) bool { return v1 < v2 })
+		case compiler.OpGreater:
+			ok = vm.compare(func(v1, v2 float64) bool { return v1 > v2 })
 		case compiler.OpEquals:
 			val2 := vm.pop()
 			val1 := vm.pop()
@@ -308,9 +311,9 @@ func (vm *VM) clearStack(stack int) {
 
 func (vm *VM) traceFunction() {
 	// todo: call function
-	if TraceExecution && vm.frame.closure.Name == "" {
+	if constants.TraceExecution && vm.frame.closure.Name == "" {
 		fmt.Fprintln(os.Stderr, "========== <script> ==========")
-	} else if TraceExecution {
+	} else if constants.TraceExecution {
 		fmt.Fprintf(os.Stderr, "========== %s ==========\n", vm.frame.closure.Name)
 	}
 }

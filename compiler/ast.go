@@ -8,8 +8,6 @@ import (
 	"os"
 )
 
-const DebugAst = true
-
 type Node interface {
 	Emit(compiler *compiler)
 	printTree(indent int)
@@ -489,8 +487,16 @@ func (comparison Comparison) Emit(compiler *compiler) {
 		switch ci.compareOp {
 		case scanner.TokenEqualEqual:
 			compiler.emitByte(OpEquals)
+		case scanner.TokenTildeEqual:
+			compiler.emitBytes(OpEquals, OpNot)
 		case scanner.TokenLess:
-			compiler.emitByte(OpLessThan)
+			compiler.emitByte(OpLess)
+		case scanner.TokenLessEqual:
+			compiler.emitBytes(OpGreater, OpNot)
+		case scanner.TokenGreater:
+			compiler.emitByte(OpGreater)
+		case scanner.TokenGreaterEqual:
+			compiler.emitBytes(OpLess, OpNot)
 		default:
 			compiler.error(fmt.Sprint("Unknown comparator operator: ", ci.compareOp))
 		}

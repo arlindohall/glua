@@ -2,6 +2,7 @@ package interpreter
 
 import (
 	"arlindohall/glua/compiler"
+	"arlindohall/glua/constants"
 	"arlindohall/glua/glerror"
 	"arlindohall/glua/scanner"
 	"arlindohall/glua/value"
@@ -9,10 +10,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-)
-
-const (
-	PrintTokens, TraceExecution bool = true, true
 )
 
 // todo: Don't provide mode
@@ -36,12 +33,12 @@ type StringInterpreter struct {
 }
 
 func FromString(vm *VM, text string) Glua {
-	return StringInterpreter{text, compiler.ReplMode, vm}
+	return StringInterpreter{text, constants.ReplMode, vm}
 }
 
 func FromBufio(reader *bufio.Reader) Glua {
 	vm := NewVm()
-	interpreter := BufioInterpreter{reader, compiler.RunFileMode, &vm}
+	interpreter := BufioInterpreter{reader, constants.RunFileMode, &vm}
 	return &interpreter
 }
 
@@ -69,7 +66,7 @@ func (interp *BufioInterpreter) Interpret() (value.Value, glerror.GluaErrorChain
 		return nil, err
 	}
 
-	if PrintTokens {
+	if constants.PrintTokens {
 		scanner.DebugTokens(tokens)
 	}
 
