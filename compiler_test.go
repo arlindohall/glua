@@ -208,3 +208,43 @@ func TestFunctionOneArg(t *testing.T) {
 
 	expectNoErrors(t, text)
 }
+
+func TestCloseLocal(t *testing.T) {
+	text := `
+	global f
+
+	do
+		local x = 10
+		function g()
+			return x
+		end
+		f = g
+		assert x == 10
+	end
+
+	assert x == nil
+	assert f() == 10
+	`
+
+	expectNoErrors(t, text)
+}
+
+func TestCloseFunction(t *testing.T) {
+	text := `
+	function f(x)
+		function g()
+			return x
+		end
+		return g
+	end
+
+	local h = f(10)
+	assert h() == 10
+
+	local j = f(20)
+	assert j() == 20
+	assert h() == 10
+	`
+
+	expectNoErrors(t, text)
+}

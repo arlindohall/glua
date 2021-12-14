@@ -27,27 +27,27 @@ type FunctionNode struct {
 }
 
 func (function FunctionNode) Emit(parent *compiler) {
-	parameters := []Local{{function.name, 0}}
-
-	for _, param := range function.parameters {
-		parameters = append(parameters, Local{param, 0})
-	}
 
 	child := &compiler{
 		text:   parent.text,
 		curr:   parent.curr,
 		chunk:  value.Chunk{},
 		name:   string(function.name),
-		locals: parameters,
+		locals: nil,
 		scope:  0,
 		err:    glerror.GluaErrorChain{},
 		mode:   parent.mode,
 		parent: parent,
 	}
 
+	child.addLocal(function.name)
+	for _, param := range function.parameters {
+		child.addLocal(param)
+	}
+
 	function.body.Emit(child)
 
-	result, err := child.end()
+	compiledFunction, err := child.end()
 
 	if !err.IsEmpty() {
 		parent.err.AppendAll(&err)
@@ -56,14 +56,34 @@ func (function FunctionNode) Emit(parent *compiler) {
 
 	if parent.scope > 0 {
 		parent.locals = append(parent.locals, Local{function.name, parent.scope})
-		c := parent.makeConstant(value.NewClosure(result.Chunk, string(function.name)))
-		parent.emitBytes(OpConstant, c)
+		makeClosure(parent, compiledFunction)
 	} else {
 		fn := parent.makeConstant(value.StringVal(function.name))
-		cl := parent.makeConstant(value.NewClosure(result.Chunk, string(function.name)))
-		parent.emitBytes(OpConstant, cl)
+		makeClosure(parent, compiledFunction)
 		parent.emitBytes(OpSetGlobal, fn)
 		parent.emitByte(OpPop)
+	}
+}
+
+// todo: is there a way to emit the closure without the constant?
+// we could key them to the instruction that creates them and look
+// the compiled functions in a map??
+func makeClosure(compiler *compiler, function Function) {
+	c := compiler.makeConstant(value.NewClosure(function.Chunk, function.Name))
+	compiler.emitBytes(OpConstant, c)
+	compiler.emitByte(OpClosure)
+
+	for _, upvalue := range function.Upvalues {
+		compiler.emitBytes(OpCreateUpvalue, byte(upvalue.index))
+		compiler.emitByte(toByte(upvalue.isLocal))
+	}
+}
+
+func toByte(b bool) byte {
+	if b {
+		return 1
+	} else {
+		return 0
 	}
 }
 
@@ -123,15 +143,16 @@ type LocalDeclaration struct {
 }
 
 func (declaration LocalDeclaration) Emit(compiler *compiler) {
-	// todo: more than one local
-	var local Local
 	if declaration.assignment != nil {
-		local = Local{declaration.name, compiler.scope}
 		(*declaration.assignment).Emit(compiler)
 	} else {
-		local = Local{declaration.name, compiler.scope}
 		compiler.emitByte(OpNil)
 	}
+	compiler.addLocal(declaration.name)
+}
+
+func (compiler *compiler) addLocal(name Identifier) {
+	local := Local{name, compiler.scope}
 	compiler.locals = append(compiler.locals, local)
 }
 
@@ -207,13 +228,42 @@ type BlockStatement struct {
 	statements []Node
 }
 
-// todo: block scope
 func (statement BlockStatement) Emit(compiler *compiler) {
 	compiler.startScope()
 	for _, st := range statement.statements {
 		st.Emit(compiler)
 	}
 	compiler.endScope()
+}
+
+func (compiler *compiler) startScope() {
+	compiler.scope += 1
+}
+
+func (compiler *compiler) endScope() {
+	compiler.scope -= 1
+
+	// Find the first local in a scope above current scope
+	var stackTop int
+	for stackTop = 0; stackTop < len(compiler.locals); stackTop++ {
+		if compiler.locals[stackTop].scope > compiler.scope {
+			break
+		}
+	}
+
+	// function f() x = 1 do y = 2 end return x end
+	// stack=[..., Function<f>, 1, 2] <- stack with locals, second is in scope
+	//
+	// to close the upvalue 2, we want to emit close upvalue up to but not
+	// including stackTop
+	compiler.emitBytes(OpCloseUpvalues, byte(stackTop))
+
+	// Drop the whole list of locals after that
+	if stackTop == 0 {
+		compiler.locals = nil
+	} else {
+		compiler.locals = compiler.locals[0:stackTop]
+	}
 }
 
 func (statement BlockStatement) printTree(indent int) {
@@ -276,13 +326,21 @@ type VariableAssignment struct {
 func (assignment VariableAssignment) Emit(compiler *compiler) {
 	assignment.value.Emit(compiler)
 
+	// todo: determine local/upvalue/global when building AST
 	local := compiler.getLocal(assignment.name)
-	if local == -1 {
-		name := compiler.makeConstant(value.StringVal(assignment.name))
-		compiler.emitBytes(OpSetGlobal, name)
-	} else {
+	if local != -1 {
 		compiler.emitBytes(OpSetLocal, byte(local))
+		return
 	}
+
+	upvalue := compiler.getUpvalue(assignment.name)
+	if upvalue != -1 {
+		compiler.emitBytes(OpSetUpvalue, byte(upvalue))
+		return
+	}
+
+	name := compiler.makeConstant(value.StringVal(assignment.name))
+	compiler.emitBytes(OpSetGlobal, name)
 }
 
 func (assignment VariableAssignment) printTree(indent int) {
@@ -708,16 +766,26 @@ func (primary VariablePrimary) Emit(compiler *compiler) {
 	name := primary.name
 
 	local := compiler.getLocal(name)
-	if local == -1 {
-		constant := compiler.makeConstant(value.StringVal(string(name)))
-		compiler.emitBytes(OpGetGlobal, constant)
-	} else {
+	if local != -1 {
 		compiler.emitBytes(OpGetLocal, byte(local))
+		return
 	}
+
+	upvalue := compiler.getUpvalue(name)
+	if upvalue != -1 {
+		compiler.emitBytes(OpGetUpvalue, byte(upvalue))
+		return
+	}
+
+	constant := compiler.makeConstant(value.StringVal(string(name)))
+	compiler.emitBytes(OpGetGlobal, constant)
+
 }
 
+// todo: encode block scope and locals into types so they can be used
+// when printing not jus when emitting
 func (primary VariablePrimary) printTree(indent int) {
-	printIndent(indent, fmt.Sprintf("Global/%s", string(primary.name)))
+	printIndent(indent, fmt.Sprintf("Identifier/%s", string(primary.name)))
 }
 
 func (primary VariablePrimary) assign(compiler *compiler) Node {

@@ -24,6 +24,20 @@ type Value interface {
 	IsNil() bool
 }
 
+// Pointer points to the right spot in slice, ex: https://go.dev/play/p/NqAO9pOXy6B
+// so long as the slice isn't copied/moved
+type Upvalue struct {
+	Pointer *Value
+	Value   Value
+	IsLocal bool
+	Index   int
+}
+
+func (upvalue *Upvalue) Close() {
+	upvalue.Value = *upvalue.Pointer
+	upvalue.Pointer = &upvalue.Value
+}
+
 type StringVal string
 
 func (s StringVal) String() string {
@@ -304,14 +318,16 @@ type Chunk struct {
 }
 
 type Closure struct {
-	Chunk Chunk
-	Name  string
+	Chunk    Chunk
+	Name     string
+	Upvalues []*Upvalue
 }
 
 func NewClosure(chunk Chunk, name string) *Closure {
 	return &Closure{
-		Chunk: chunk,
-		Name:  name,
+		Chunk:    chunk,
+		Name:     name,
+		Upvalues: nil,
 	}
 }
 

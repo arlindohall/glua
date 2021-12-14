@@ -13,13 +13,17 @@ const (
 	OpAssert
 	OpAnd
 	OpCall
+	OpCloseUpvalues
+	OpClosure
 	OpConstant
 	OpCreateTable
+	OpCreateUpvalue
 	OpDivide
 	OpEquals
 	OpGetGlobal
 	OpGetLocal
 	OpGetTable
+	OpGetUpvalue
 	OpJumpIfFalse
 	OpLessThan
 	OpLoop
@@ -33,6 +37,7 @@ const (
 	OpSetGlobal
 	OpSetLocal
 	OpSetTable
+	OpSetUpvalue
 	OpInitTable
 	OpInsertTable
 	OpSubtract
@@ -54,20 +59,28 @@ type Local struct {
 }
 
 type compiler struct {
-	text   []scanner.Token
-	curr   int
-	chunk  value.Chunk
-	name   string
-	locals []Local
-	scope  int
-	err    glerror.GluaErrorChain
-	mode   ReturnMode
-	parent *compiler
+	text     []scanner.Token
+	curr     int
+	chunk    value.Chunk
+	name     string
+	locals   []Local
+	upvalues []*Upvalue
+	scope    int
+	err      glerror.GluaErrorChain
+	mode     ReturnMode
+	parent   *compiler
 }
 
 type Function struct {
-	Chunk value.Chunk
-	Name  string
+	Chunk    value.Chunk
+	Name     string
+	Upvalues []*Upvalue
+}
+
+type Upvalue struct {
+	index   int
+	name    Identifier
+	isLocal bool
 }
 
 func Compile(text []scanner.Token, mode ReturnMode) (Function, glerror.GluaErrorChain) {
@@ -239,29 +252,6 @@ func (compiler *compiler) block() BlockStatement {
 
 	compiler.consume(scanner.TokenEnd)
 	return block
-}
-
-func (compiler *compiler) startScope() {
-	compiler.scope += 1
-}
-
-func (compiler *compiler) endScope() {
-	compiler.scope -= 1
-
-	// Find the first local in a scope above current scope
-	var i int
-	for i = 0; i < len(compiler.locals); i++ {
-		if compiler.locals[i].scope > compiler.scope {
-			break
-		}
-	}
-
-	// Drop the whole list of locals after that
-	if i == 0 {
-		compiler.locals = nil
-	} else {
-		compiler.locals = compiler.locals[0:i]
-	}
 }
 
 func (compiler *compiler) whileStatement() Node {
@@ -587,6 +577,50 @@ func (compiler *compiler) getLocal(name Identifier) int {
 	return -1
 }
 
+func (compiler *compiler) getUpvalue(name Identifier) int {
+	for i, upvalue := range compiler.upvalues {
+		if upvalue.name == name {
+			return i
+		}
+	}
+
+	if compiler.parent == nil {
+		// no enclosing scope, no upvalue
+		return -1
+	}
+
+	for i, local := range compiler.parent.locals {
+		// this won't resolve at top level because we checked in the calling context
+		if local.name == name {
+			// found one, make an upvalue pointing to the local
+			return compiler.makeUpvalue(name, i, true)
+		}
+	}
+
+	// check the enclosing scope
+	upvalue := compiler.parent.getUpvalue(name)
+
+	if upvalue == -1 {
+		// it's just a global
+		return upvalue
+	} else {
+		// the enclosing scope has an upvalue, make an upvalue pointing at that one
+		return compiler.makeUpvalue(name, upvalue, false)
+	}
+}
+
+func (compiler *compiler) makeUpvalue(name Identifier, index int, isLocal bool) int {
+	upvalue := len(compiler.upvalues)
+
+	compiler.upvalues = append(compiler.upvalues, &Upvalue{
+		name:    name,
+		index:   index,
+		isLocal: isLocal,
+	})
+
+	return upvalue
+}
+
 func (compiler *compiler) tableLiteral() TableLiteral {
 	compiler.advance()
 	var pairs []Node
@@ -747,8 +781,9 @@ func (compiler *compiler) end() (Function, glerror.GluaErrorChain) {
 
 	// todo: get name from compiler
 	function := Function{
-		Chunk: compiler.chunk,
-		Name:  compiler.name,
+		Chunk:    compiler.chunk,
+		Name:     compiler.name,
+		Upvalues: compiler.upvalues,
 	}
 
 	if PrintBytecode {

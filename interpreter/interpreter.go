@@ -78,7 +78,7 @@ func (interp *BufioInterpreter) Interpret() (value.Value, glerror.GluaErrorChain
 	}
 
 	// todo: use a VM struct that is re-used on Repl
-	val, err := interp.vm.Interpret(function.Chunk)
+	val, err := interp.vm.Interpret(function)
 
 	if !err.IsEmpty() {
 		fmt.Fprintln(os.Stderr, err)

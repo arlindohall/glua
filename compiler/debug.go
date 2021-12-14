@@ -31,6 +31,16 @@ func ByteName(op byte) string {
 		return "OpGetTable"
 	case OpInsertTable:
 		return "OpInsertTable"
+	case OpClosure:
+		return "OpClosure"
+	case OpCreateUpvalue:
+		return "OpCreateUpvalue"
+	case OpCloseUpvalues:
+		return "OpCloseUpvalues"
+	case OpGetUpvalue:
+		return "OpGetUpvalue"
+	case OpSetUpvalue:
+		return "OpSetUpvalue"
 	case OpCall:
 		return "OpCall"
 	case OpConstant:
@@ -81,13 +91,16 @@ func DebugPrint(function Function) {
 	var print func(int, []byte) int
 	for i < len(bytecode) {
 		switch bytecode[i] {
-		case OpConstant, OpSetGlobal, OpGetGlobal, OpSetLocal, OpGetLocal:
+		case OpConstant, OpSetGlobal, OpGetGlobal, OpSetLocal, OpGetLocal,
+			OpCloseUpvalues, OpGetUpvalue, OpSetUpvalue:
 			print = printConstant
 		case OpAdd, OpSubtract, OpNot, OpNegate, OpMult, OpDivide, OpNil,
 			OpReturn, OpPop, OpAssert, OpEquals, OpLessThan, OpAnd, OpOr,
 			OpCreateTable, OpSetTable, OpInsertTable, OpInitTable, OpGetTable, OpZero,
-			OpCall:
+			OpCall, OpClosure:
 			print = printInstruction
+		case OpCreateUpvalue:
+			print = printUpvalue
 		case OpLoop:
 			print = printLoop
 		case OpJumpIfFalse:
@@ -109,6 +122,11 @@ func printInstruction(i int, bytecode []byte) int {
 func printConstant(i int, bytecode []byte) int {
 	fmt.Fprintf(os.Stderr, "%04d | %-16s %-4d\n", i, ByteName(bytecode[i]), bytecode[i+1])
 	return i + 2
+}
+
+func printUpvalue(i int, bytecode []byte) int {
+	fmt.Fprintf(os.Stderr, "%04d | %-16s %-4d%-4v\n", i, ByteName(bytecode[i]), bytecode[i+1], bytecode[i+2] == 1)
+	return i + 3
 }
 
 func printJump(i int, bytecode []byte) int {

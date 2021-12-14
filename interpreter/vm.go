@@ -16,11 +16,12 @@ type CallFrame struct {
 }
 
 type VM struct {
-	frame     *CallFrame
-	stack     []value.Value
-	stackSize int
-	globals   map[string]value.Value
-	err       glerror.GluaErrorChain
+	frame        *CallFrame
+	stack        []value.Value
+	openUpvalues []*value.Upvalue
+	stackSize    int
+	globals      map[string]value.Value
+	err          glerror.GluaErrorChain
 }
 
 func NewVm() VM {
@@ -33,13 +34,10 @@ func NewVm() VM {
 	}
 }
 
-func (vm *VM) Interpret(chunk value.Chunk) (value.Value, glerror.GluaErrorChain) {
-	closure := value.Closure{
-		Name:  "",
-		Chunk: chunk,
-	}
+func (vm *VM) Interpret(function compiler.Function) (value.Value, glerror.GluaErrorChain) {
+	closure := value.NewClosure(function.Chunk, function.Name)
 
-	vm.push(&closure)
+	vm.push(closure)
 	vm.push(value.Number(0))
 	vm.call()
 
@@ -152,6 +150,35 @@ func (vm *VM) run() value.Value {
 			val := vm.peek()
 
 			vm.setLocal(byte(slot), val)
+		case compiler.OpCreateUpvalue:
+			index := vm.readByte()
+			isLocal := vm.readByte() == 1
+			closure := vm.peek().AsFunction()
+
+			vm.createUpvalue(index, isLocal, closure)
+		case compiler.OpGetUpvalue:
+			// todo: trace isLocal too
+			index := vm.readByte()
+			val := vm.getUpvalue(index)
+
+			vm.push(val)
+		case compiler.OpSetUpvalue:
+			index := vm.readByte()
+			val := vm.peek()
+
+			vm.setUpvalue(index, val)
+		case compiler.OpCloseUpvalues:
+			index := vm.readByte()
+			vm.closeUpvalues(vm.frame.stack + int(index))
+		case compiler.OpClosure:
+			// Copy closure
+			closure := vm.pop().AsFunction()
+
+			vm.push(&value.Closure{
+				Chunk:    closure.Chunk,
+				Name:     closure.Name,
+				Upvalues: nil,
+			})
 		case compiler.OpJumpIfFalse:
 			cond := vm.pop()
 
@@ -221,7 +248,7 @@ func (vm *VM) run() value.Value {
 				vm.returnFrom()
 			}
 		default:
-			return vm.error(fmt.Sprint("Do not know how to perform: ", op))
+			return vm.error(fmt.Sprint("Do not know how to perform: ", compiler.ByteName(op)))
 		}
 
 		if !ok {
@@ -249,6 +276,8 @@ func (vm *VM) call() {
 
 func (vm *VM) returnFrom() {
 	val := vm.pop()
+
+	vm.closeUpvalues(vm.frame.stack)
 
 	// stack=[x, y, func, a, b, c, retval]; frame.stack=2
 	stack := vm.frame.stack
@@ -307,6 +336,66 @@ func (vm *VM) getLocal(slot byte) value.Value {
 
 func (vm *VM) setLocal(slot byte, val value.Value) {
 	vm.stack[vm.frame.stack+int(slot)] = val
+}
+
+func (vm *VM) createUpvalue(index byte, isLocal bool, closure *value.Closure) {
+	var upvalue *value.Upvalue
+
+	if isLocal {
+		upvalue = &value.Upvalue{
+			Value:   nil,
+			Pointer: &vm.stack[vm.frame.stack+int(index)],
+			IsLocal: true,
+			Index:   int(index),
+		}
+
+	} else {
+		root := vm.frame.closure.Upvalues[index]
+		upvalue = &value.Upvalue{
+			Value:   nil,
+			Pointer: root.Pointer,
+			IsLocal: false,
+			Index:   root.Index,
+		}
+	}
+
+	vm.addOpenUpvalue(upvalue)
+
+	closure.Upvalues = append(closure.Upvalues, upvalue)
+}
+
+func (vm *VM) addOpenUpvalue(upvalue *value.Upvalue) {
+	vm.openUpvalues = append(vm.openUpvalues, upvalue)
+}
+
+func (vm *VM) getUpvalue( /*frame *CallFrame,*/ index byte) value.Value {
+	return *vm.frame.closure.Upvalues[index].Pointer
+
+}
+
+func (vm *VM) setUpvalue(index byte, val value.Value) {
+	*vm.frame.closure.Upvalues[index].Pointer = val
+}
+
+func (vm *VM) closeUpvalues(index int) {
+	dropping, keeping := vm.partitionUpvalues(index)
+	vm.openUpvalues = keeping
+
+	for _, upvalue := range dropping {
+		upvalue.Close()
+	}
+}
+
+func (vm *VM) partitionUpvalues(index int) (keeping []*value.Upvalue, dropping []*value.Upvalue) {
+	for _, upvalue := range vm.openUpvalues {
+		if upvalue.Index > index {
+			dropping = append(dropping, upvalue)
+		} else {
+			keeping = append(keeping, upvalue)
+		}
+	}
+
+	return
 }
 
 func (vm *VM) arithmetic(name string, op func(float64, float64) float64) bool {
