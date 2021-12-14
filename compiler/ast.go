@@ -171,7 +171,7 @@ func (declaration LocalDeclaration) assign(compiler *compiler) Node {
 
 type WhileStatement struct {
 	condition Node
-	body      BlockStatement
+	body      Node
 }
 
 func (statement WhileStatement) Emit(compiler *compiler) {
@@ -200,6 +200,53 @@ func (statement WhileStatement) printTree(indent int) {
 
 func (statement WhileStatement) assign(compiler *compiler) Node {
 	compiler.error("Cannot assign to while statement")
+	return statement
+}
+
+type IfStatement struct {
+	condition      Node
+	body           Node
+	counterfactual Node
+}
+
+func (statement IfStatement) Emit(compiler *compiler) {
+	statement.condition.Emit(compiler)
+
+	jumpFromIfFalse := compiler.chunkSize()
+	compiler.emitJump(OpJumpIfFalse)
+
+	statement.body.Emit(compiler)
+	jumpToIfFalse := compiler.chunkSize()
+
+	if statement.counterfactual != nil {
+		compiler.emitByte(OpNil)
+		jumpFromIfTrue := compiler.chunkSize()
+		compiler.emitJump(OpJumpIfFalse)
+
+		// We jump past the else jump if there's a counterfactual
+		jumpToIfFalse = compiler.chunkSize()
+
+		statement.counterfactual.Emit(compiler)
+		jumpToIfTrue := compiler.chunkSize()
+		compiler.patchJump(jumpFromIfTrue, jumpToIfTrue)
+	}
+
+	compiler.patchJump(jumpFromIfFalse, jumpToIfFalse)
+}
+
+func (statement IfStatement) printTree(indent int) {
+	printIndent(indent, "If")
+	statement.condition.printTree(indent + 1)
+	statement.body.printTree(indent + 1)
+
+	if statement.counterfactual != nil {
+		printIndent(indent+1, "Else")
+		statement.counterfactual.printTree(indent + 2)
+	}
+}
+
+func (statement IfStatement) assign(compiler *compiler) Node {
+	compiler.error("Cannot assign to if statement")
 	return statement
 }
 

@@ -30,4 +30,8 @@ func (chain *GluaErrorChain) AppendAll(source *GluaErrorChain) {
 	}
 }
 
+func (chain *GluaErrorChain) First() GluaError {
+	return chain.errors[0]
+}
+
 type GluaError error

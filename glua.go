@@ -54,21 +54,18 @@ func runFile(fileName string) {
 
 	reader := bufio.NewReader(file)
 
-	val, intErr := interpreter.FromBufio(reader).Interpret()
+	val, intErrs := interpreter.FromBufio(reader).Interpret()
 
-	if !intErr.IsEmpty() {
-		switch err.(type) {
+	if !intErrs.IsEmpty() {
+		fmt.Fprintln(os.Stderr, err)
+		switch intErrs.First().(type) {
 		case scanner.ScanError:
-			fmt.Println(err)
 			os.Exit(1)
 		case compiler.CompileError:
-			fmt.Println(err)
 			os.Exit(2)
 		case interpreter.RuntimeError:
-			fmt.Println(err)
 			os.Exit(3)
 		default:
-			fmt.Println("Unexpected error: ", err)
 			os.Exit(4)
 		}
 	}

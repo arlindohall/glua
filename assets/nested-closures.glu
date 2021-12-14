@@ -1,0 +1,31 @@
+// 1 million
+SIZE = 1_000_000
+
+function cons(list, node)
+    return {
+        head=node,
+        tail=list
+    }
+end
+
+function get(list, index)
+    if list == nil then
+        return nil
+    end
+
+    if index == 0 then
+        return list.head
+    end
+
+    return get(list.tail, index-1)
+end
+
+list = nil
+x = 0
+
+while x <= SIZE do
+    list = cons(list, x)
+    x = x + 1
+end
+
+return get(list, SIZE)

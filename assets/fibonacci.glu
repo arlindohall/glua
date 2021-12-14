@@ -1,6 +1,6 @@
 
 function fib(x)
-    while x <= 2 do
+    if x <= 2 then
         return 1
     end
 

@@ -251,3 +251,27 @@ func TestCloseFunction(t *testing.T) {
 
 	expectNoErrors(t, text)
 }
+
+func TestIfStatement(t *testing.T) {
+	text := `
+	if x then
+		assert false
+	else
+		assert true
+	end
+	`
+
+	expectNoErrors(t, text)
+}
+
+func TestCounterfactual(t *testing.T) {
+	text := `
+	if !x then
+		assert true
+	else
+		assert false
+	end
+	`
+
+	expectNoErrors(t, text)
+}

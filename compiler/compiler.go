@@ -191,8 +191,14 @@ func (compiler *compiler) statement() Node {
 		return compiler.function()
 	case scanner.TokenWhile:
 		return compiler.whileStatement()
+	case scanner.TokenIf:
+		return compiler.ifStatement()
 	case scanner.TokenDo:
-		return compiler.block()
+		compiler.consume(scanner.TokenDo)
+		block := compiler.block()
+		compiler.consume(scanner.TokenEnd)
+
+		return block
 	case scanner.TokenReturn:
 		return compiler.returnStatement()
 	default:
@@ -229,8 +235,14 @@ func (compiler *compiler) parameters() []Identifier {
 	compiler.consume(scanner.TokenLeftParen)
 
 	var identifiers []Identifier
-	for !compiler.check(scanner.TokenRightParen) {
+	for !compiler.check(scanner.TokenEof) && !compiler.check(scanner.TokenRightParen) {
 		identifiers = append(identifiers, compiler.identifier())
+
+		if compiler.check(scanner.TokenComma) {
+			compiler.consume(scanner.TokenComma)
+		} else {
+			break
+		}
 	}
 
 	compiler.consume(scanner.TokenRightParen)
@@ -238,24 +250,69 @@ func (compiler *compiler) parameters() []Identifier {
 	return identifiers
 }
 
+// todo: depend on calling context for bracket words (if/then/end, while/do/end)
 func (compiler *compiler) block() BlockStatement {
 	var block BlockStatement
-	compiler.consume(scanner.TokenDo)
 
-	for compiler.current().Type != scanner.TokenEnd {
+	for !compiler.terminateBlock() {
 		block.statements = append(block.statements, compiler.declaration())
 	}
 
-	compiler.consume(scanner.TokenEnd)
 	return block
 }
 
+// It's critical to check the type after the block so that you don't accidentally
+// allow, for example: `do x = 1 then`
+func (compiler *compiler) terminateBlock() bool {
+	switch compiler.current().Type {
+	case scanner.TokenEnd, scanner.TokenElse:
+		return true
+	default:
+		return false
+	}
+}
+
+// todo: replace block with do/block/end
 func (compiler *compiler) whileStatement() Node {
 	compiler.consume(scanner.TokenWhile)
 
+	expression := compiler.expression()
+
+	compiler.consume(scanner.TokenDo)
+	body := compiler.block()
+	compiler.consume(scanner.TokenEnd)
+
 	return WhileStatement{
-		condition: compiler.expression(),
-		body:      compiler.block(),
+		condition: expression,
+		body:      body,
+	}
+}
+
+func (compiler *compiler) ifStatement() Node {
+	compiler.consume(scanner.TokenIf)
+
+	condition := compiler.expression()
+
+	compiler.consume(scanner.TokenThen)
+	body := compiler.block()
+
+	if compiler.check(scanner.TokenElse) {
+		compiler.consume(scanner.TokenElse)
+		counterfactual := compiler.block()
+		compiler.consume(scanner.TokenEnd)
+
+		return IfStatement{
+			condition:      condition,
+			body:           body,
+			counterfactual: counterfactual,
+		}
+	} else {
+		compiler.consume(scanner.TokenEnd)
+
+		return IfStatement{
+			condition: condition,
+			body:      body,
+		}
 	}
 }
 

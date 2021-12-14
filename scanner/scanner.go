@@ -31,6 +31,7 @@ const (
 	TokenComma
 	TokenDo
 	TokenDot
+	TokenElse
 	TokenEnd
 	TokenEof
 	TokenEqual
@@ -41,6 +42,7 @@ const (
 	TokenGreater
 	TokenGreaterEqual
 	TokenIdentifier
+	TokenIf
 	TokenLeftBrace
 	TokenLeftBracket
 	TokenLeftParen
@@ -60,6 +62,7 @@ const (
 	TokenSlash
 	TokenStar
 	TokenString
+	TokenThen
 	TokenTildeEqual
 	TokenTrue
 	TokenWhile
@@ -69,6 +72,7 @@ func Scanner(reader *bufio.Reader) *scanner {
 	return &scanner{
 		reader: reader,
 		err:    glerror.GluaErrorChain{},
+		line:   1,
 	}
 }
 
@@ -84,8 +88,6 @@ func (scanner *scanner) ScanTokens() ([]Token, glerror.GluaErrorChain) {
 	if err == io.EOF {
 		return tokens, scanner.err
 	}
-
-	scanner.error(fmt.Sprint("Error reading from file ", scanner.err))
 
 	return tokens, scanner.err
 }
@@ -153,10 +155,18 @@ func (scanner *scanner) check(r rune) bool {
 	}
 }
 
-func (scanner *scanner) skipWhitespace() {
+func (scanner *scanner) skipWhitespace() *Token {
 	for r, err := scanner.peekRune(); err == nil; r, err = scanner.peekRune() {
+		if r == '/' {
+			if scanner.consumeComment() {
+				return nil
+			}
+			token := scanner.makeToken("/", TokenSlash)
+			return &token
+		}
+
 		if !unicode.IsSpace(r) {
-			return
+			return nil
 		}
 
 		if r == '\n' {
@@ -165,10 +175,37 @@ func (scanner *scanner) skipWhitespace() {
 
 		scanner.advance()
 	}
+
+	return nil
+}
+
+func (scanner *scanner) consumeComment() bool {
+	scanner.advance()
+	secondSlash, _ := scanner.peekRune()
+
+	if secondSlash != '/' {
+		return false
+	}
+
+	var err error
+	var r rune
+	for r, err = scanner.peekRune(); err == nil && r != '\n'; r, err = scanner.peekRune() {
+		scanner.advance()
+	}
+
+	if err == nil {
+		scanner.advance()
+	}
+
+	return true
 }
 
 func (scanner *scanner) scanToken() (Token, error) {
-	scanner.skipWhitespace()
+	token := scanner.skipWhitespace()
+
+	if token != nil {
+		return *token, nil
+	}
 
 	r, err := scanner.peekRune()
 	switch {
@@ -241,8 +278,13 @@ func (scanner *scanner) makeToken(name string, tt TokenType) Token {
 func (scanner *scanner) scanNumber() (Token, error) {
 	var runes []rune
 
+	// todo: decimals
 	r, err := scanner.scanRune()
-	for ; err == nil && isNumber(r); r, err = scanner.scanRune() {
+	for ; err == nil && isNumber(r) || r == '_'; r, err = scanner.scanRune() {
+		if r == '_' {
+			continue
+		}
+
 		runes = append(runes, r)
 	}
 
@@ -339,6 +381,12 @@ func (scanner *scanner) scanWord() (Token, error) {
 		return scanner.makeToken(source, TokenLocal), nil
 	case "while":
 		return scanner.makeToken(source, TokenWhile), nil
+	case "if":
+		return scanner.makeToken(source, TokenIf), nil
+	case "then":
+		return scanner.makeToken(source, TokenThen), nil
+	case "else":
+		return scanner.makeToken(source, TokenElse), nil
 	case "do":
 		return scanner.makeToken(source, TokenDo), nil
 	case "end":

@@ -7,8 +7,6 @@ import (
 	"arlindohall/glua/scanner"
 	"arlindohall/glua/value"
 	"bufio"
-	"fmt"
-	"os"
 	"strings"
 )
 
@@ -80,7 +78,6 @@ func (interp *BufioInterpreter) Interpret() (value.Value, glerror.GluaErrorChain
 	val, err := interp.vm.Interpret(function)
 
 	if !err.IsEmpty() {
-		fmt.Fprintln(os.Stderr, err)
 		return nil, err
 	}
 
