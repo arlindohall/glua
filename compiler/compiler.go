@@ -213,7 +213,8 @@ func (compiler *compiler) function() Node {
 	parameters := compiler.parameters()
 	var declarations []Node
 
-	for !compiler.check(scanner.TokenEnd) {
+	// todo: better error messages about non-terminated function
+	for !compiler.check(scanner.TokenEnd) && !compiler.check(scanner.TokenEof) {
 		declarations = append(declarations, compiler.declaration())
 	}
 
