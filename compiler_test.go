@@ -1,15 +1,18 @@
 package main
 
 import (
+	"arlindohall/glua/constants"
 	"arlindohall/glua/interpreter"
 	"fmt"
 	"testing"
 )
 
 func expectNoErrors(t *testing.T, text string) {
-	fmt.Println("~~~~~~~~~~ Running program ~~~~~~~~~~")
-	fmt.Println(text)
-	fmt.Println("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+	if constants.PrintTokens {
+		fmt.Println("~~~~~~~~~~ Running program ~~~~~~~~~~")
+		fmt.Println(text)
+		fmt.Println("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+	}
 
 	vm := interpreter.NewVm()
 	_, err := interpreter.FromString(&vm, text).Interpret()

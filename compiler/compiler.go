@@ -632,7 +632,6 @@ func (compiler *compiler) tableLiteral() TableLiteral {
 }
 
 func (compiler *compiler) pair() Node {
-	fmt.Println(compiler.current().Type, compiler.peek().Type)
 	switch {
 	case compiler.check(scanner.TokenLeftBracket):
 		return compiler.literalPair()
