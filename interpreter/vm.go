@@ -170,6 +170,7 @@ func (vm *VM) run() value.Value {
 		case compiler.OpCloseUpvalues:
 			index := vm.readByte()
 			vm.closeUpvalues(vm.frame.stack + int(index))
+			vm.clearStack(vm.frame.stack + int(index))
 		case compiler.OpClosure:
 			// Copy closure
 			closure := vm.pop().AsFunction()
@@ -283,16 +284,24 @@ func (vm *VM) returnFrom() {
 	stack := vm.frame.stack
 	context := vm.frame.context
 
+	// remove all stack entries from stack..stackSize, not inclusive of stackSize
+	// this also sets the stack top to the stack top before the call, dropping
+	// the closure as well as parameters and locals
+	//
+	// then set the call frame to the parent call frame
+	vm.clearStack(stack)
 	vm.frame = context
-	vm.stackSize = stack
-
-	for i := stack; i < vm.stackSize; i++ {
-		vm.stack[i] = nil
-	}
 
 	vm.push(val)
 
 	vm.traceFunction()
+}
+
+func (vm *VM) clearStack(stack int) {
+	for i := stack; i < vm.stackSize; i++ {
+		vm.stack[i] = nil
+	}
+	vm.stackSize = stack
 }
 
 func (vm *VM) traceFunction() {
