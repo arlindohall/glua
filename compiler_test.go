@@ -275,3 +275,9 @@ func TestCounterfactual(t *testing.T) {
 
 	expectNoErrors(t, text)
 }
+
+func TestBuiltinTime(t *testing.T) {
+	text := "time()"
+
+	expectNoErrors(t, text)
+}

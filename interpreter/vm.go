@@ -26,13 +26,21 @@ type VM struct {
 }
 
 func NewVm() VM {
-	return VM{
+	vm := VM{
 		frame:     nil,
 		stack:     nil,
 		stackSize: 0,
 		globals:   make(map[string]value.Value),
 		err:       glerror.GluaErrorChain{},
 	}
+
+	vm.addBuiltins()
+
+	return vm
+}
+
+func (vm *VM) addBuiltins() {
+	vm.globals["time"] = value.NewBuiltin("time", value.Time)
 }
 
 func (vm *VM) Interpret(function compiler.Function) (value.Value, glerror.GluaErrorChain) {
@@ -131,10 +139,10 @@ func (vm *VM) run() value.Value {
 			i := vm.readByte()
 			name := vm.frame.closure.Chunk.Constants[i]
 
-			vm.globals[name.String()] = val
+			vm.globals[name.RawString()] = val
 		case compiler.OpGetGlobal:
 			i := vm.readByte()
-			name := vm.frame.closure.Chunk.Constants[i].String()
+			name := vm.frame.closure.Chunk.Constants[i].RawString()
 
 			val := vm.globals[name]
 
@@ -156,7 +164,7 @@ func (vm *VM) run() value.Value {
 		case compiler.OpCreateUpvalue:
 			index := vm.readByte()
 			isLocal := vm.readByte() == 1
-			closure := vm.peek().AsFunction()
+			closure := vm.peek().AsClosure()
 
 			vm.createUpvalue(index, isLocal, closure)
 		case compiler.OpGetUpvalue:
@@ -176,7 +184,7 @@ func (vm *VM) run() value.Value {
 			vm.clearStack(vm.frame.stack + int(index))
 		case compiler.OpClosure:
 			// Copy closure
-			closure := vm.pop().AsFunction()
+			closure := vm.pop().AsClosure()
 
 			vm.push(&value.Closure{
 				Chunk:    closure.Chunk,
@@ -263,19 +271,30 @@ func (vm *VM) run() value.Value {
 
 func (vm *VM) call() {
 	arity := int(vm.pop().AsNumber())
-	// stack=[x, y, func, a, b, c]; stackSize=6; arity=3
+	// stack=[x, y, func, a, b, c]; stackSize=6; arity=3 -> stackBottom=2
 	stackBottom := vm.stackSize - arity - 1
-	closure := vm.stack[stackBottom].AsFunction()
-	enclosing := vm.frame
-	frame := CallFrame{
-		ip:      0,
-		stack:   stackBottom,
-		context: enclosing,
-		closure: closure,
-	}
-	vm.frame = &frame
 
-	vm.traceFunction()
+	if vm.stack[stackBottom].IsClosure() {
+		closure := vm.stack[stackBottom].AsClosure()
+		enclosing := vm.frame
+		frame := CallFrame{
+			ip:      0,
+			stack:   stackBottom,
+			context: enclosing,
+			closure: closure,
+		}
+		vm.frame = &frame
+
+		vm.traceFunction()
+	} else if vm.stack[stackBottom].IsBuiltin() {
+		arguments := vm.stack[stackBottom+1 : vm.stackSize]
+		for range arguments {
+			vm.pop()
+		}
+
+		builtin := vm.pop().AsBuiltin()
+		vm.push(builtin.Function(arguments))
+	}
 }
 
 func (vm *VM) returnFrom() {

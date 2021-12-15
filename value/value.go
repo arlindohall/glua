@@ -14,12 +14,16 @@ type Value interface {
 	AsBoolean() bool
 
 	IsString() bool
+	RawString() string
 
 	IsTable() bool
 	AsTable() *Table
 
-	IsFunction() bool
-	AsFunction() *Closure
+	IsClosure() bool
+	AsClosure() *Closure
+
+	IsBuiltin() bool
+	AsBuiltin() *Builtin
 
 	IsNil() bool
 }
@@ -64,6 +68,10 @@ func (s StringVal) IsString() bool {
 	return true
 }
 
+func (s StringVal) RawString() string {
+	return string(s)
+}
+
 func (s StringVal) IsNil() bool {
 	return false
 }
@@ -76,12 +84,20 @@ func (s StringVal) AsTable() *Table {
 	panic("Internal error: cannot cast string as table.")
 }
 
-func (s StringVal) IsFunction() bool {
+func (s StringVal) IsClosure() bool {
 	return false
 }
 
-func (s StringVal) AsFunction() *Closure {
-	return nil
+func (s StringVal) AsClosure() *Closure {
+	panic("Internal error: cannot cast string as function")
+}
+
+func (s StringVal) IsBuiltin() bool {
+	return false
+}
+
+func (s StringVal) AsBuiltin() *Builtin {
+	panic("Internal error: cannot cast string as function")
 }
 
 type Number float64
@@ -110,6 +126,10 @@ func (n Number) IsString() bool {
 	return false
 }
 
+func (n Number) RawString() string {
+	return fmt.Sprint(float64(n))
+}
+
 func (n Number) IsNil() bool {
 	return false
 }
@@ -122,12 +142,20 @@ func (n Number) AsTable() *Table {
 	panic("Internal error: cannot cast number as table.")
 }
 
-func (n Number) IsFunction() bool {
+func (n Number) IsClosure() bool {
 	return false
 }
 
-func (n Number) AsFunction() *Closure {
-	return nil
+func (n Number) AsClosure() *Closure {
+	panic("Internal error: cannot cast number as function")
+}
+
+func (n Number) IsBuiltin() bool {
+	return false
+}
+
+func (n Number) AsBuiltin() *Builtin {
+	panic("Internal error: cannot cast number as function")
 }
 
 type Boolean bool
@@ -160,6 +188,10 @@ func (b Boolean) IsString() bool {
 	return false
 }
 
+func (b Boolean) RawString() string {
+	return fmt.Sprint(bool(b))
+}
+
 func (b Boolean) IsNil() bool {
 	return false
 }
@@ -172,12 +204,20 @@ func (b Boolean) AsTable() *Table {
 	panic("Internal error: cannot cast boolean as table.")
 }
 
-func (b Boolean) IsFunction() bool {
+func (b Boolean) IsClosure() bool {
 	return false
 }
 
-func (b Boolean) AsFunction() *Closure {
-	return nil
+func (b Boolean) AsClosure() *Closure {
+	panic("Internal error: cannot cast boolean as function")
+}
+
+func (b Boolean) IsBuiltin() bool {
+	return false
+}
+
+func (b Boolean) AsBuiltin() *Builtin {
+	panic("Internal error: cannot cast boolean as function")
 }
 
 type Nil struct{}
@@ -206,6 +246,10 @@ func (n Nil) IsString() bool {
 	return false
 }
 
+func (n Nil) RawString() string {
+	return "nil"
+}
+
 func (n Nil) IsNil() bool {
 	return true
 }
@@ -218,12 +262,20 @@ func (n Nil) AsTable() *Table {
 	panic("Internal error: cannot cast nil as table.")
 }
 
-func (n Nil) IsFunction() bool {
+func (n Nil) IsClosure() bool {
 	return false
 }
 
-func (n Nil) AsFunction() *Closure {
+func (n Nil) AsClosure() *Closure {
 	return nil
+}
+
+func (n Nil) IsBuiltin() bool {
+	return false
+}
+
+func (n Nil) AsBuiltin() *Builtin {
+	panic("Internal error: cannot cast nil as function")
 }
 
 type Table struct {
@@ -239,6 +291,7 @@ func NewTable() *Table {
 }
 
 func (t *Table) String() string {
+	// todo: this should be pretty-print with tracking
 	return fmt.Sprintf("Table<%p>", t)
 }
 
@@ -262,6 +315,10 @@ func (t *Table) IsString() bool {
 	return false
 }
 
+func (t *Table) RawString() string {
+	return fmt.Sprintf("Table<%p>", t)
+}
+
 func (t *Table) IsNil() bool {
 	return false
 }
@@ -274,12 +331,20 @@ func (t *Table) AsTable() *Table {
 	return t
 }
 
-func (t *Table) IsFunction() bool {
+func (t *Table) IsClosure() bool {
 	return false
 }
 
-func (t *Table) AsFunction() *Closure {
+func (t *Table) AsClosure() *Closure {
 	return nil
+}
+
+func (t *Table) IsBuiltin() bool {
+	return false
+}
+
+func (t *Table) AsBuiltin() *Builtin {
+	panic("Internal error: cannot cast table as function")
 }
 
 func (t *Table) Set(k, v Value) bool {
@@ -355,6 +420,10 @@ func (closure *Closure) IsString() bool {
 	return false
 }
 
+func (closure *Closure) RawString() string {
+	return closure.Name
+}
+
 func (closure *Closure) IsNil() bool {
 	return false
 }
@@ -367,10 +436,82 @@ func (closure *Closure) AsTable() *Table {
 	panic("Internal error: cannot cast table as function")
 }
 
-func (closure *Closure) IsFunction() bool {
+func (closure *Closure) IsClosure() bool {
 	return true
 }
 
-func (closure *Closure) AsFunction() *Closure {
+func (closure *Closure) AsClosure() *Closure {
 	return closure
+}
+
+func (closure *Closure) IsBuiltin() bool {
+	return false
+}
+
+func (closure *Closure) AsBuiltin() *Builtin {
+	panic("Internal error: cannot cast closure as builtin")
+}
+
+type BuiltinFunc func([]Value) Value
+
+// todo: multiple return
+type Builtin struct {
+	Function BuiltinFunc
+	Name     string
+}
+
+func (builtin *Builtin) String() string {
+	return fmt.Sprintf("Function<%s>", builtin.Name)
+}
+
+func (builtin *Builtin) IsNumber() bool {
+	return false
+}
+
+func (builtin *Builtin) AsNumber() float64 {
+	return 0
+}
+
+func (builtin *Builtin) IsBoolean() bool {
+	return false
+}
+
+func (builtin *Builtin) AsBoolean() bool {
+	return true
+}
+
+func (builtin *Builtin) IsString() bool {
+	return false
+}
+
+func (builtin *Builtin) RawString() string {
+	return builtin.Name
+}
+
+func (builtin *Builtin) IsNil() bool {
+	return false
+}
+
+func (builtin *Builtin) IsTable() bool {
+	return true
+}
+
+func (builtin *Builtin) AsTable() *Table {
+	panic("Internal error: cannot cast function as table")
+}
+
+func (builtin *Builtin) IsClosure() bool {
+	return false
+}
+
+func (builtin *Builtin) AsClosure() *Closure {
+	panic(fmt.Sprint("Internal error: ", builtin.Name, " is not a function"))
+}
+
+func (builtin *Builtin) IsBuiltin() bool {
+	return true
+}
+
+func (builtin *Builtin) AsBuiltin() *Builtin {
+	return builtin
 }

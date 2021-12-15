@@ -21,9 +21,7 @@ go run . <filename>
 
 - Weak tables
 - Multiple return
-- If statement
 - For loops/iterators
-- Builtin functions (time to start)
 
 ## Grammar
 
