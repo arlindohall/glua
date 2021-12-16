@@ -281,3 +281,25 @@ func TestBuiltinTime(t *testing.T) {
 
 	expectNoErrors(t, text)
 }
+
+// func TestStressTableAccess(t *testing.T) {
+// 	text := `
+// 	x = 0
+// 	t = {}
+// 	while x < 10000000 do
+// 		function f()
+// 			return x
+// 		end
+// 		t[x] = f
+// 		x = x + 1
+// 	end
+
+// 	y = 0
+// 	x = 0
+// 	while x < 10000000 do
+// 		y = y + t[x]()
+// 		x = x + 1
+// 	end
+// 	`
+// 	expectNoErrors(t, text)
+// }
