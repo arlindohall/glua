@@ -282,6 +282,61 @@ func TestBuiltinTime(t *testing.T) {
 	expectNoErrors(t, text)
 }
 
+func TestArity(t *testing.T) {
+	text := []string{}
+
+	add := func(s string) {
+		text = append(text, s)
+	}
+
+	add(`
+	function f()
+		return 1, 2
+	end
+
+	x, y = f()
+
+	assert x == 1
+	assert y == 2
+	`)
+
+	add(`
+	function f()
+		return 1, 2
+	end
+
+	x = f()
+
+	assert x == 1
+	`)
+
+	add(`
+	function f()
+		return 1, 2
+	end
+
+	x, y= 3, f()
+
+	assert x == 3
+	assert y == 1
+	`)
+
+	add(`
+	function f()
+		return 1, 2
+	end
+
+	x, y= 3, f()
+
+	assert x == 3
+	assert y == 1
+	`)
+
+	for _, prog := range text {
+		expectNoErrors(t, prog)
+	}
+}
+
 // func TestStressTableAccess(t *testing.T) {
 // 	text := `
 // 	x = 0

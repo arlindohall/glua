@@ -10,13 +10,15 @@ func DebugTrace(vm *VM) {
 	var trace func(int, *VM)
 	switch vm.previous() {
 	case compiler.OpConstant, compiler.OpSetGlobal, compiler.OpGetGlobal, compiler.OpSetLocal, compiler.OpGetLocal,
-		compiler.OpCloseUpvalues, compiler.OpGetUpvalue, compiler.OpSetUpvalue:
+		compiler.OpCloseUpvalues, compiler.OpGetUpvalue, compiler.OpSetUpvalue, compiler.OpReturn:
 		trace = traceConstant
 	case compiler.OpAdd, compiler.OpSubtract, compiler.OpNot, compiler.OpNegate, compiler.OpMult, compiler.OpDivide, compiler.OpNil,
-		compiler.OpReturn, compiler.OpPop, compiler.OpAssert, compiler.OpLess, compiler.OpGreater, compiler.OpEquals, compiler.OpAnd, compiler.OpOr,
+		compiler.OpPop, compiler.OpAssert, compiler.OpLess, compiler.OpGreater, compiler.OpEquals, compiler.OpAnd, compiler.OpOr,
 		compiler.OpCreateTable, compiler.OpSetTable, compiler.OpInsertTable, compiler.OpInitTable, compiler.OpGetTable, compiler.OpZero,
-		compiler.OpCall, compiler.OpClosure:
+		compiler.OpClosure, compiler.OpAssignStart, compiler.OpAssignCleanup:
 		trace = traceInstruction
+	case compiler.OpCall:
+		trace = traceCall
 	case compiler.OpCreateUpvalue:
 		trace = traceUpvalue
 	case compiler.OpJumpIfFalse:
@@ -36,6 +38,10 @@ func traceInstruction(i int, vm *VM) {
 
 func traceConstant(i int, vm *VM) {
 	fmt.Fprintf(os.Stderr, "%04d | %-16v %-4d                      %v\n", i, compiler.ByteName(vm.previous()), vm.current(), vm.stack[:vm.stackSize])
+}
+
+func traceCall(i int, vm *VM) {
+	fmt.Fprintf(os.Stderr, "%04d | %-16v %-4d%-5v                 %v\n", i, compiler.ByteName(vm.previous()), vm.current(), vm.next() == 1, vm.stack[:vm.stackSize])
 }
 
 func traceUpvalue(i int, vm *VM) {

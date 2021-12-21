@@ -9,6 +9,10 @@ func ByteName(op byte) string {
 	switch op {
 	case OpAssert:
 		return "OpAssert"
+	case OpAssignStart:
+		return "OpAssignStart"
+	case OpAssignCleanup:
+		return "OpAssignCleanup"
 	case OpNil:
 		return "OpNil"
 	case OpZero:
@@ -94,15 +98,17 @@ func DebugPrint(function Function) {
 	for i < len(bytecode) {
 		switch bytecode[i] {
 		case OpConstant, OpSetGlobal, OpGetGlobal, OpSetLocal, OpGetLocal,
-			OpCloseUpvalues, OpGetUpvalue, OpSetUpvalue:
+			OpCloseUpvalues, OpGetUpvalue, OpSetUpvalue, OpReturn:
 			print = printConstant
 		case OpAdd, OpSubtract, OpNot, OpNegate, OpMult, OpDivide, OpNil,
-			OpReturn, OpPop, OpAssert, OpEquals, OpLess, OpGreater, OpAnd, OpOr,
+			OpPop, OpAssert, OpEquals, OpLess, OpGreater, OpAnd, OpOr,
 			OpCreateTable, OpSetTable, OpInsertTable, OpInitTable, OpGetTable, OpZero,
-			OpCall, OpClosure:
+			OpClosure, OpAssignStart, OpAssignCleanup:
 			print = printInstruction
 		case OpCreateUpvalue:
 			print = printUpvalue
+		case OpCall:
+			print = printCall
 		case OpLoop:
 			print = printLoop
 		case OpJumpIfFalse:
@@ -124,6 +130,11 @@ func printInstruction(i int, bytecode []byte) int {
 func printConstant(i int, bytecode []byte) int {
 	fmt.Fprintf(os.Stderr, "%04d | %-16s %-4d\n", i, ByteName(bytecode[i]), bytecode[i+1])
 	return i + 2
+}
+
+func printCall(i int, bytecode []byte) int {
+	fmt.Fprintf(os.Stderr, "%04d | %-16s %-4d%-4v\n", i, ByteName(bytecode[i]), bytecode[i+1], bytecode[i+2] == 1)
+	return i + 3
 }
 
 func printUpvalue(i int, bytecode []byte) int {

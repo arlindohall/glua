@@ -12,6 +12,8 @@ import (
 const (
 	OpAdd = iota
 	OpAssert
+	OpAssignCleanup
+	OpAssignStart
 	OpAnd
 	OpCall
 	OpCloseUpvalues
@@ -28,6 +30,8 @@ const (
 	OpGreater
 	OpJumpIfFalse
 	OpLess
+	OpLocalAllocate
+	OpLocalCleanup
 	OpLoop
 	OpMult
 	OpNegate
@@ -156,28 +160,47 @@ func (compiler *compiler) declaration() Node {
 
 func (compiler *compiler) global() Node {
 	compiler.consume(scanner.TokenGlobal)
-	decl := GlobalDeclaration{Identifier(compiler.identifier()), nil}
 
-	if compiler.check(scanner.TokenEqual) {
-		compiler.consume(scanner.TokenEqual)
-		var assignment = compiler.assignment()
-		decl.assignment = &assignment
-	}
-
-	return decl
+	return compiler.variableDeclaration(func(names []Identifier, values []Node) Node {
+		return GlobalDeclaration{
+			names:  names,
+			values: values,
+		}
+	})
 }
 
 func (compiler *compiler) local() Node {
-	compiler.consume(scanner.TokenLocal)
-	decl := LocalDeclaration{Identifier(compiler.identifier()), nil}
+	compiler.consume(scanner.TokenGlobal)
 
-	if compiler.check(scanner.TokenEqual) {
-		compiler.consume(scanner.TokenEqual)
-		var assignment = compiler.assignment()
-		decl.assignment = &assignment
+	return compiler.variableDeclaration(func(names []Identifier, values []Node) Node {
+		return LocalDeclaration{
+			names:  names,
+			values: values,
+		}
+	})
+}
+
+func (compiler *compiler) variableDeclaration(constructor func([]Identifier, []Node) Node) Node {
+	names := []Identifier{compiler.identifier()}
+
+	for compiler.check(scanner.TokenComma) {
+		compiler.consume(scanner.TokenComma)
+		names = append(names, compiler.identifier())
 	}
 
-	return decl
+	if !compiler.check(scanner.TokenEqual) {
+		return constructor(names, nil)
+	}
+
+	compiler.consume(scanner.TokenEqual)
+
+	values := []Node{compiler.expression()}
+
+	for compiler.check(scanner.TokenComma) {
+		values = append(values, compiler.expression())
+	}
+
+	return constructor(names, values)
 }
 
 func (compiler *compiler) statement() Node {
@@ -202,7 +225,7 @@ func (compiler *compiler) statement() Node {
 	case scanner.TokenReturn:
 		return compiler.returnStatement()
 	default:
-		return Expression{compiler.expression()}
+		return compiler.assignment()
 	}
 }
 
@@ -316,32 +339,77 @@ func (compiler *compiler) ifStatement() Node {
 	}
 }
 
+// todo: empty return statements
 func (compiler *compiler) returnStatement() Node {
 	compiler.consume(scanner.TokenReturn)
 
+	var expressions []Node = []Node{compiler.expression()}
+
+	for compiler.check(scanner.TokenComma) {
+		compiler.consume(scanner.TokenComma)
+		expressions = append(expressions, compiler.expression())
+	}
+
+	// todo: overflow
 	return ReturnStatement{
-		value: compiler.expression(),
+		arity:  byte(len(expressions)),
+		values: expressions,
 	}
 }
 
-func (compiler *compiler) expression() Node {
-	return compiler.assignment()
-}
-
+// todo: restrict this to statement not expression
 func (compiler *compiler) assignment() Node {
-	logicOr := compiler.logicOr()
-	if compiler.check(scanner.TokenEqual) {
-		compiler.consume(scanner.TokenEqual)
-		return logicOr.assign(compiler)
+	expression := compiler.expression()
+	if compiler.check(scanner.TokenEqual) || compiler.check(scanner.TokenComma) {
+		return compiler.multipleAssignment(expression)
 	} else {
-		return logicOr
+		return Expression{expression: expression}
 	}
+}
+
+func (compiler *compiler) multipleAssignment(node Node) Node {
+	// add all variables plus passed-in node to list
+	variables := []Node{node}
+	for compiler.check(scanner.TokenComma) {
+		compiler.consume(scanner.TokenComma)
+		// todo: actually allow assignment to expression if it resolves a variable???
+		variables = append(variables, compiler.expression())
+	}
+
+	compiler.consume(scanner.TokenEqual)
+
+	// todo: remove chained assignment because of ambiguity
+	values := []Node{compiler.expression()}
+
+	for compiler.check(scanner.TokenComma) {
+		compiler.consume(scanner.TokenComma)
+		expression := compiler.expression()
+
+		switch expression.(type) {
+		case Call:
+			expression.assign(nil)
+		}
+
+		values = append(values, expression)
+	}
+
+	assignment := MultipleAssignment{
+		variables: variables,
+		values:    values,
+	}
+
+	// add all expressions to right of equals to list inside assign
+	return assignment
 }
 
 func (compiler *compiler) identifier() Identifier {
 	ident := compiler.current().Text
 	compiler.consume(scanner.TokenIdentifier)
 	return Identifier(ident)
+}
+
+func (compiler *compiler) expression() Node {
+	return compiler.logicOr()
 }
 
 func (compiler *compiler) logicOr() Node {
@@ -529,8 +597,9 @@ func (compiler *compiler) call() Node {
 			args := compiler.arguments()
 
 			primary = Call{
-				base:      primary,
-				arguments: args,
+				base:         primary,
+				arguments:    args,
+				isAssignment: false,
 			}
 		}
 	}
@@ -818,6 +887,7 @@ func (compiler *compiler) patchJump(source, dest int) {
 func (compiler *compiler) emitReturn() {
 	if !compiler.patchReturn() {
 		compiler.emitBytes(OpNil, OpReturn)
+		compiler.emitByte(1)
 	}
 }
 
@@ -829,6 +899,7 @@ func (compiler *compiler) patchReturn() bool {
 		compiler.chunk.Bytecode[last] == OpPop
 	if shouldPatch {
 		compiler.chunk.Bytecode[last] = OpReturn
+		compiler.emitByte(1)
 	}
 
 	return shouldPatch

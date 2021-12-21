@@ -56,10 +56,11 @@ func (function FunctionNode) Emit(parent *compiler) {
 		parent.locals = append(parent.locals, Local{function.name, parent.scope})
 		makeClosure(parent, compiledFunction)
 	} else {
+		parent.emitByte(OpAssignStart)
 		fn := parent.makeConstant(value.StringVal(function.name))
 		makeClosure(parent, compiledFunction)
 		parent.emitBytes(OpSetGlobal, fn)
-		parent.emitByte(OpPop)
+		parent.emitByte(OpAssignCleanup)
 	}
 }
 
@@ -103,29 +104,34 @@ func (function FunctionNode) assign(compiler *compiler) Node {
 }
 
 type GlobalDeclaration struct {
-	name       Identifier
-	assignment *Node
+	names  []Identifier
+	values []Node
 }
 
 func (declaration GlobalDeclaration) Emit(compiler *compiler) {
-	b := compiler.makeConstant(value.StringVal(declaration.name))
-	if declaration.assignment != nil {
-		(*declaration.assignment).Emit(compiler)
-		compiler.emitBytes(OpSetGlobal, b)
-		compiler.emitByte(OpPop)
-	} else {
-		compiler.emitByte(OpNil)
-		compiler.emitBytes(OpSetGlobal, b)
-		compiler.emitByte(OpPop)
+	compiler.emitByte(OpAssignStart)
+
+	for _, value := range declaration.values {
+		value.Emit(compiler)
 	}
+
+	for _, name := range declaration.names {
+		b := compiler.makeConstant(value.StringVal(name))
+		compiler.emitBytes(OpSetGlobal, b)
+	}
+
+	compiler.emitByte(OpAssignCleanup)
 }
 
 func (declaration GlobalDeclaration) printTree(indent int) {
 	printIndent(indent, "GlobalDeclaration")
-	printIndent(indent+1, declaration.name)
 
-	if declaration.assignment != nil {
-		(*declaration.assignment).printTree(indent + 1)
+	for _, name := range declaration.names {
+		printIndent(indent+1, string(name))
+	}
+
+	for _, value := range declaration.values {
+		value.printTree(indent + 1)
 	}
 }
 
@@ -136,17 +142,22 @@ func (declaration GlobalDeclaration) assign(compiler *compiler) Node {
 }
 
 type LocalDeclaration struct {
-	name       Identifier
-	assignment *Node
+	names  []Identifier
+	values []Node
 }
 
 func (declaration LocalDeclaration) Emit(compiler *compiler) {
-	if declaration.assignment != nil {
-		(*declaration.assignment).Emit(compiler)
-	} else {
-		compiler.emitByte(OpNil)
+	compiler.emitBytes(OpLocalAllocate, byte(len(declaration.names)))
+
+	for _, value := range declaration.values {
+		value.Emit(compiler)
 	}
-	compiler.addLocal(declaration.name)
+
+	for _, name := range declaration.names {
+		compiler.addLocal(name)
+	}
+
+	compiler.emitByte(OpLocalCleanup)
 }
 
 func (compiler *compiler) addLocal(name Identifier) {
@@ -156,10 +167,13 @@ func (compiler *compiler) addLocal(name Identifier) {
 
 func (declaration LocalDeclaration) printTree(indent int) {
 	printIndent(indent, "LocalDeclaration")
-	printIndent(indent+1, declaration.name)
 
-	if declaration.assignment != nil {
-		(*declaration.assignment).printTree(indent + 1)
+	for _, name := range declaration.names {
+		printIndent(indent+1, string(name))
+	}
+
+	for _, value := range declaration.values {
+		value.printTree(indent + 1)
 	}
 }
 
@@ -251,17 +265,25 @@ func (statement IfStatement) assign(compiler *compiler) Node {
 }
 
 type ReturnStatement struct {
-	value Node
+	arity  byte
+	values []Node
 }
 
 func (statement ReturnStatement) Emit(compiler *compiler) {
-	statement.value.Emit(compiler)
-	compiler.emitByte(OpReturn)
+	for _, value := range statement.values {
+		value.Emit(compiler)
+	}
+
+	// todo: track arity at runtime in case of multiple return func
+	compiler.emitBytes(OpReturn, statement.arity)
 }
 
 func (statement ReturnStatement) printTree(indent int) {
 	printIndent(indent, "Return")
-	statement.value.printTree(indent + 1)
+
+	for _, value := range statement.values {
+		value.printTree(indent + 1)
+	}
 }
 
 func (statement ReturnStatement) assign(compiler *compiler) Node {
@@ -344,6 +366,45 @@ func (statement AssertStatement) assign(compiler *compiler) Node {
 	return statement
 }
 
+type MultipleAssignment struct {
+	variables []Node
+	values    []Node
+}
+
+func (assignment MultipleAssignment) Emit(compiler *compiler) {
+	compiler.emitByte(OpAssignStart)
+
+	for _, value := range assignment.values {
+		value.Emit(compiler)
+	}
+
+	for _, variable := range assignment.variables {
+		variable.assign(compiler).Emit(compiler)
+	}
+
+	compiler.emitByte(OpAssignCleanup)
+}
+
+func (assignment MultipleAssignment) printTree(indent int) {
+	printIndent(indent, "Assignment")
+	printIndent(indent+1, "Variables")
+
+	for _, variable := range assignment.variables {
+		variable.printTree(indent + 2)
+	}
+
+	printIndent(indent+1, "Values")
+
+	for _, value := range assignment.values {
+		value.printTree(indent + 2)
+	}
+}
+
+func (assignment MultipleAssignment) assign(compiler *compiler) Node {
+	compiler.error("Cannot assign to assignment")
+	return assignment
+}
+
 type Expression struct {
 	expression Node
 }
@@ -364,13 +425,10 @@ func (statement Expression) assign(compiler *compiler) Node {
 }
 
 type VariableAssignment struct {
-	name  Identifier
-	value Node
+	name Identifier
 }
 
 func (assignment VariableAssignment) Emit(compiler *compiler) {
-	assignment.value.Emit(compiler)
-
 	// todo: determine local/upvalue/global when building AST
 	local := compiler.getLocal(assignment.name)
 	if local != -1 {
@@ -389,33 +447,21 @@ func (assignment VariableAssignment) Emit(compiler *compiler) {
 }
 
 func (assignment VariableAssignment) printTree(indent int) {
-	printIndent(indent, "Assign")
-	printIndent(indent+1, assignment.name)
-	assignment.value.printTree(indent + 1)
+	printIndent(indent, assignment.name)
 }
 
 func (assignment VariableAssignment) assign(compiler *compiler) Node {
-	target := assignment.name
-	intermediate := assignment.value
-
-	value := intermediate.assign(compiler)
-
-	return VariableAssignment{
-		target,
-		value,
-	}
+	panic("Cannot assign to assignment")
 }
 
 type TableAssignment struct {
 	table     Node
 	attribute Node
-	value     Node
 }
 
 func (assignment TableAssignment) Emit(compiler *compiler) {
 	assignment.table.Emit(compiler)
 	assignment.attribute.Emit(compiler)
-	assignment.value.Emit(compiler)
 	compiler.emitByte(OpSetTable)
 }
 
@@ -423,11 +469,10 @@ func (assignment TableAssignment) printTree(indent int) {
 	printIndent(indent, "AssignTable")
 	assignment.table.printTree(indent + 1)
 	assignment.attribute.printTree(indent + 1)
-	assignment.value.printTree(indent + 1)
 }
 
 func (assignment TableAssignment) assign(compiler *compiler) Node {
-	compiler.error("Cannot assign to assignment (yet)")
+	compiler.error("Cannot assign to assignment")
 	return assignment
 }
 
@@ -450,11 +495,7 @@ func (accessor TableAccessor) printTree(indent int) {
 }
 
 func (accessor TableAccessor) assign(compiler *compiler) Node {
-	return TableAssignment{
-		table:     accessor.table,
-		attribute: accessor.attribute,
-		value:     compiler.expression(),
-	}
+	return TableAssignment(accessor)
 }
 
 type LogicOr struct {
@@ -732,8 +773,9 @@ func (exponent Exponent) assign(compiler *compiler) Node {
 }
 
 type Call struct {
-	base      Node
-	arguments []Node
+	base         Node
+	arguments    []Node
+	isAssignment bool
 }
 
 func (call Call) Emit(compiler *compiler) {
@@ -745,10 +787,10 @@ func (call Call) Emit(compiler *compiler) {
 		arity++
 	}
 
-	c := compiler.makeConstant(value.Number(arity))
-	compiler.emitBytes(OpConstant, c)
-
-	compiler.emitByte(OpCall)
+	// todo: audit places where ints are downcast for overflow
+	// -> arity, locals, upvalues
+	compiler.emitBytes(OpCall, byte(arity))
+	compiler.emitByte(toByte(call.isAssignment))
 }
 
 func (call Call) printTree(indent int) {
@@ -764,8 +806,13 @@ func (call Call) printTree(indent int) {
 	}
 }
 
+// todo: is this too hacky?
 func (call Call) assign(compiler *compiler) Node {
-	compiler.error("Cannot assign to function call")
+	if compiler == nil {
+		call.isAssignment = true
+	} else {
+		compiler.error("Cannot assign to function call")
+	}
 	return call
 }
 
@@ -842,10 +889,8 @@ func (primary VariablePrimary) printTree(indent int) {
 }
 
 func (primary VariablePrimary) assign(compiler *compiler) Node {
-	return VariableAssignment{
-		name:  primary.name,
-		value: compiler.expression(),
-	}
+	// todo: make this a stage in a chain of assignments one stack entry at a time
+	return VariableAssignment(primary)
 }
 
 type TableLiteral struct {

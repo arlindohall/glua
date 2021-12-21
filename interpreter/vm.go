@@ -10,17 +10,20 @@ import (
 )
 
 type CallFrame struct {
-	ip      int
-	stack   int
-	closure *value.Closure
-	context *CallFrame
+	ip           int
+	stack        int
+	closure      *value.Closure
+	context      *CallFrame
+	isAssignment bool
 }
 
 type VM struct {
 	frame        *CallFrame
+	assignBase   int
+	assignTarget int
+	stackSize    int
 	stack        []value.Value
 	openUpvalues []*value.Upvalue
-	stackSize    int
 	globals      map[string]value.Value
 	err          glerror.GluaErrorChain
 }
@@ -47,8 +50,7 @@ func (vm *VM) Interpret(function compiler.Function) (value.Value, glerror.GluaEr
 	closure := value.NewClosure(function.Chunk, function.Name)
 
 	vm.push(closure)
-	vm.push(value.Number(0))
-	vm.call()
+	vm.call(0, false)
 
 	val := vm.run()
 
@@ -134,8 +136,17 @@ func (vm *VM) run() value.Value {
 			default:
 				return vm.error("Cannot add two non-numbers")
 			}
+		case compiler.OpAssignStart:
+			vm.assignBase = vm.stackSize
+			vm.assignTarget = vm.assignBase
+		case compiler.OpAssignCleanup:
+			// for security, clear stack
+			vm.clearStack(vm.assignBase)
+
+			vm.assignBase = 0
+			vm.assignTarget = 0
 		case compiler.OpSetGlobal:
-			val := vm.peek()
+			val := vm.getAssign()
 			i := vm.readByte()
 			name := vm.frame.closure.Chunk.Constants[i]
 
@@ -151,33 +162,33 @@ func (vm *VM) run() value.Value {
 			} else {
 				vm.push(val)
 			}
+		case compiler.OpSetLocal:
+			slot := vm.readByte()
+			val := vm.getAssign()
+
+			vm.setLocal(byte(slot), val)
 		case compiler.OpGetLocal:
 			slot := vm.readByte()
 			val := vm.getLocal(byte(slot))
 
 			vm.push(val)
-		case compiler.OpSetLocal:
-			slot := vm.readByte()
-			val := vm.peek()
-
-			vm.setLocal(byte(slot), val)
 		case compiler.OpCreateUpvalue:
 			index := vm.readByte()
 			isLocal := vm.readByte() == 1
 			closure := vm.peek().AsClosure()
 
 			vm.createUpvalue(index, isLocal, closure)
+		case compiler.OpSetUpvalue:
+			index := vm.readByte()
+			val := vm.getAssign()
+
+			vm.setUpvalue(index, val)
 		case compiler.OpGetUpvalue:
 			// todo: trace isLocal too
 			index := vm.readByte()
 			val := vm.getUpvalue(index)
 
 			vm.push(val)
-		case compiler.OpSetUpvalue:
-			index := vm.readByte()
-			val := vm.peek()
-
-			vm.setUpvalue(index, val)
 		case compiler.OpCloseUpvalues:
 			index := vm.readByte()
 			vm.closeUpvalues(vm.frame.stack + int(index))
@@ -218,7 +229,7 @@ func (vm *VM) run() value.Value {
 
 			table.Insert(val)
 		case compiler.OpSetTable:
-			val := vm.pop()
+			val := vm.getAssign()
 			key := vm.pop()
 			table := vm.pop().AsTable()
 
@@ -251,10 +262,12 @@ func (vm *VM) run() value.Value {
 			val := table.AsTable().Get(attribute)
 			vm.push(val)
 		case compiler.OpCall:
-			vm.call()
+			arity := int(vm.readByte())
+			isAssignment := vm.readByte() == 1
+			vm.call(arity, isAssignment)
 		case compiler.OpReturn:
-			// todo: multiple return
-			vm.returnFrom()
+			arity := int(vm.readByte())
+			vm.returnFrom(arity)
 
 			if vm.frame == nil {
 				return vm.pop()
@@ -269,8 +282,7 @@ func (vm *VM) run() value.Value {
 	}
 }
 
-func (vm *VM) call() {
-	arity := int(vm.pop().AsNumber())
+func (vm *VM) call(arity int, isAssignment bool) {
 	// stack=[x, y, func, a, b, c]; stackSize=6; arity=3 -> stackBottom=2
 	stackBottom := vm.stackSize - arity - 1
 
@@ -278,10 +290,11 @@ func (vm *VM) call() {
 		closure := vm.stack[stackBottom].AsClosure()
 		enclosing := vm.frame
 		frame := CallFrame{
-			ip:      0,
-			stack:   stackBottom,
-			context: enclosing,
-			closure: closure,
+			ip:           0,
+			stack:        stackBottom,
+			context:      enclosing,
+			closure:      closure,
+			isAssignment: isAssignment,
 		}
 		vm.frame = &frame
 
@@ -297,24 +310,39 @@ func (vm *VM) call() {
 	}
 }
 
-func (vm *VM) returnFrom() {
-	val := vm.pop()
+func (vm *VM) returnFrom(arity int) {
+	values := make([]value.Value, arity)
 
+	for i := 1; i <= arity; i++ {
+		values[arity-i] = vm.pop()
+	}
+
+	// stack=[x, y, func, a, b, c, r1, r2, r3]; frame.stack=2; arity=3
 	vm.closeUpvalues(vm.frame.stack)
 
-	// stack=[x, y, func, a, b, c, retval]; frame.stack=2
+	// stack=[x, y, func, a, b, c, r1, r2, r3]; frame.stack=2; arity=3
 	stack := vm.frame.stack
 	context := vm.frame.context
+	isAssignment := vm.frame.isAssignment
 
 	// remove all stack entries from stack..stackSize, not inclusive of stackSize
 	// this also sets the stack top to the stack top before the call, dropping
 	// the closure as well as parameters and locals
 	//
 	// then set the call frame to the parent call frame
+	// stack=[x, y]; frame.stack=0
 	vm.clearStack(stack)
 	vm.frame = context
 
-	vm.push(val)
+	if isAssignment && len(values) > 0 {
+		vm.push(values[0])
+	} else if isAssignment && len(values) == 0 {
+		vm.push(value.Nil{})
+	} else {
+		for _, value := range values {
+			vm.push(value)
+		}
+	}
 
 	if vm.frame != nil {
 		vm.traceFunction()
@@ -361,6 +389,13 @@ func (vm *VM) push(val value.Value) {
 
 func (vm *VM) getConstant(slot byte) value.Value {
 	return vm.frame.closure.Chunk.Constants[slot]
+}
+
+func (vm *VM) getAssign() value.Value {
+	target := vm.stack[vm.assignTarget]
+	vm.assignTarget += 1
+
+	return target
 }
 
 func (vm *VM) getLocal(slot byte) value.Value {
