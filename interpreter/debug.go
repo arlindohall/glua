@@ -15,7 +15,7 @@ func DebugTrace(vm *VM) {
 	case compiler.OpAdd, compiler.OpSubtract, compiler.OpNot, compiler.OpNegate, compiler.OpMult, compiler.OpDivide, compiler.OpNil,
 		compiler.OpPop, compiler.OpAssert, compiler.OpLess, compiler.OpGreater, compiler.OpEquals, compiler.OpAnd, compiler.OpOr,
 		compiler.OpCreateTable, compiler.OpSetTable, compiler.OpInsertTable, compiler.OpInitTable, compiler.OpGetTable, compiler.OpZero,
-		compiler.OpClosure, compiler.OpAssignStart, compiler.OpAssignCleanup:
+		compiler.OpClosure, compiler.OpAssignStart, compiler.OpAssignCleanup, compiler.OpLocalAllocate, compiler.OpLocalCleanup:
 		trace = traceInstruction
 	case compiler.OpCall:
 		trace = traceCall

@@ -170,7 +170,7 @@ func (compiler *compiler) global() Node {
 }
 
 func (compiler *compiler) local() Node {
-	compiler.consume(scanner.TokenGlobal)
+	compiler.consume(scanner.TokenLocal)
 
 	return compiler.variableDeclaration(func(names []Identifier, values []Node) Node {
 		return LocalDeclaration{

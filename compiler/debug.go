@@ -17,6 +17,10 @@ func ByteName(op byte) string {
 		return "OpNil"
 	case OpZero:
 		return "OpZero"
+	case OpLocalAllocate:
+		return "OpLocalAllocate"
+	case OpLocalCleanup:
+		return "OpLocalCleanup"
 	case OpGetGlobal:
 		return "OpGetGlobal"
 	case OpSetGlobal:
@@ -103,7 +107,7 @@ func DebugPrint(function Function) {
 		case OpAdd, OpSubtract, OpNot, OpNegate, OpMult, OpDivide, OpNil,
 			OpPop, OpAssert, OpEquals, OpLess, OpGreater, OpAnd, OpOr,
 			OpCreateTable, OpSetTable, OpInsertTable, OpInitTable, OpGetTable, OpZero,
-			OpClosure, OpAssignStart, OpAssignCleanup:
+			OpClosure, OpAssignStart, OpAssignCleanup, OpLocalAllocate, OpLocalCleanup:
 			print = printInstruction
 		case OpCreateUpvalue:
 			print = printUpvalue

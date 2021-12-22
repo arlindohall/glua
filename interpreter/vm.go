@@ -19,8 +19,9 @@ type CallFrame struct {
 
 type VM struct {
 	frame        *CallFrame
-	assignBase   int
-	assignTarget int
+	assignBase   []int
+	assignTarget []int
+	localTarget  []int
 	stackSize    int
 	stack        []value.Value
 	openUpvalues []*value.Upvalue
@@ -137,14 +138,19 @@ func (vm *VM) run() value.Value {
 				return vm.error("Cannot add two non-numbers")
 			}
 		case compiler.OpAssignStart:
-			vm.assignBase = vm.stackSize
-			vm.assignTarget = vm.assignBase
+			vm.addAssignment(vm.stackSize)
 		case compiler.OpAssignCleanup:
 			// for security, clear stack
-			vm.clearStack(vm.assignBase)
-
-			vm.assignBase = 0
-			vm.assignTarget = 0
+			vm.clearStack(vm.popAssignment())
+		case compiler.OpLocalAllocate:
+			// todo: handle if there are fewer values than we need
+			vm.addLocalAssignment(vm.stackSize + int(vm.readByte()))
+		case compiler.OpLocalCleanup:
+			// stack=[x, y] stackSize=2
+			// z, w = 1, 2, 3
+			// stack=[x, y, 1, 2, 3] vm.localTarget=(2+2)=4
+			// desired stack=[x, y, 1, 2]
+			vm.clearStack(vm.popLocalAssignment())
 		case compiler.OpSetGlobal:
 			val := vm.getAssign()
 			i := vm.readByte()
@@ -282,6 +288,38 @@ func (vm *VM) run() value.Value {
 	}
 }
 
+func (vm *VM) addAssignment(capacity int) {
+	vm.assignBase = append(vm.assignBase, capacity)
+	vm.assignTarget = append(vm.assignTarget, capacity)
+}
+
+func (vm *VM) incAssignTarget() int {
+	index := len(vm.assignTarget) - 1
+	result := vm.assignTarget[index]
+	vm.assignTarget[index] += 1
+
+	return result
+}
+
+func (vm *VM) popAssignment() int {
+	assign := vm.assignBase[len(vm.assignBase)-1]
+	vm.assignBase = vm.assignBase[1:]
+	vm.assignTarget = vm.assignTarget[1:]
+
+	return assign
+}
+
+func (vm *VM) addLocalAssignment(capacity int) {
+	vm.localTarget = append(vm.localTarget, capacity)
+}
+
+func (vm *VM) popLocalAssignment() int {
+	assign := vm.localTarget[len(vm.localTarget)-1]
+	vm.localTarget = vm.localTarget[1:]
+
+	return assign
+}
+
 func (vm *VM) call(arity int, isAssignment bool) {
 	// stack=[x, y, func, a, b, c]; stackSize=6; arity=3 -> stackBottom=2
 	stackBottom := vm.stackSize - arity - 1
@@ -392,10 +430,12 @@ func (vm *VM) getConstant(slot byte) value.Value {
 }
 
 func (vm *VM) getAssign() value.Value {
-	target := vm.stack[vm.assignTarget]
-	vm.assignTarget += 1
-
-	return target
+	index := vm.incAssignTarget()
+	if index >= vm.stackSize {
+		return value.Nil{}
+	} else {
+		return vm.stack[index]
+	}
 }
 
 func (vm *VM) getLocal(slot byte) value.Value {
