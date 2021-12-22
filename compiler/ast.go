@@ -38,7 +38,8 @@ func (function FunctionNode) Emit(parent *compiler) {
 		parent: parent,
 	}
 
-	child.addLocal(function.name)
+	// Do not set function name so that base is not accessible
+	child.addLocal("")
 	for _, param := range function.parameters {
 		child.addLocal(param)
 	}
@@ -255,7 +256,124 @@ func (statement NumericForStatement) assign(compiler *compiler) Node {
 	return statement
 }
 
-type GenericForStatement struct{}
+type GenericForStatement struct {
+	targets  []Identifier
+	iterator []Node
+	body     Node
+}
+
+/**
+The Lua documentation states that a for statement can be transformed
+as follows:
+
+More precisely, a construction like
+
+```
+for var_1, ..., var_n in explist do block end
+```
+
+is equivalent to the following code:
+
+```
+do
+	local _f, _s, _var = explist
+	while true do
+	local var_1, ... , var_n = _f(_s, _var)
+	_var = var_1
+	if _var == nil then break end
+	block
+	end
+end
+```
+
+I'm going to do a similar transformation but without the break statement
+
+```
+do
+	local #f, #s, #var = explist 			// loopInit
+	local var_1 ... var_n = #f(#s, #var) 	// varInit
+	#var = var_1 							// loopCondUpdate
+	while var_1 do 							// whileStatement
+		do									// body
+			block
+		end
+		var_1 ... var_n = #f(#s, var_1) 	// varUpdate
+		#var = var_1 						// loopCondUpdate
+	end
+end
+```
+*/
+func (statement GenericForStatement) Emit(compiler *compiler) {
+	// Just convert the for loop to the equivalent while statement
+	compiler.startScope()
+
+	loopInit := LocalDeclaration{
+		names:  []Identifier{"#f", "#s", "#var"},
+		values: statement.iterator,
+	}
+
+	call := &Call{
+		base:      VariablePrimary{"#f"},
+		arguments: []Node{},
+	}
+
+	varInit := LocalDeclaration{
+		names:  statement.targets,
+		values: []Node{call},
+	}
+
+	var locals []Node
+	for _, target := range statement.targets {
+		locals = append(locals, VariablePrimary{target})
+	}
+
+	varUpdate := MultipleAssignment{
+		variables: locals,
+		values:    []Node{call},
+	}
+
+	loopCondUpdate := MultipleAssignment{
+		variables: []Node{VariablePrimary{Identifier("#var")}},
+		values:    []Node{VariablePrimary{statement.targets[0]}},
+	}
+
+	body := BlockStatement{[]Node{statement.body, varUpdate, loopCondUpdate}}
+
+	whileStatement := WhileStatement{
+		condition: VariablePrimary{"#var"},
+		body:      body,
+	}
+
+	transform := BlockStatement{[]Node{
+		loopInit, varInit, loopCondUpdate, whileStatement,
+	}}
+
+	transform.printTree(0)
+	transform.Emit(compiler)
+
+	compiler.endScope()
+}
+
+func (statement GenericForStatement) printTree(indent int) {
+	printIndent(indent, "GenericFor")
+
+	printIndent(indent+1, "Targets")
+	for _, target := range statement.targets {
+		printIndent(indent+2, string(target))
+	}
+
+	printIndent(indent+1, "Iterator")
+	for _, it := range statement.iterator {
+		it.printTree(indent + 2)
+	}
+
+	statement.body.printTree(indent + 1)
+}
+
+func (statement GenericForStatement) assign(compiler *compiler) Node {
+	compiler.error("Cannot assign to for statement")
+	return statement
+}
 
 type IfStatement struct {
 	condition      Node

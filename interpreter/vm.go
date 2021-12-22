@@ -243,8 +243,6 @@ func (vm *VM) run() value.Value {
 			if !ok {
 				return vm.error("Cannot set key <nil> in table.")
 			}
-
-			vm.push(val)
 		case compiler.OpInitTable:
 			// Exact same as set table, but leaves table on stack instead of value
 			val := vm.pop()
@@ -301,9 +299,10 @@ func (vm *VM) incAssignTarget() int {
 }
 
 func (vm *VM) popAssignment() int {
-	assign := vm.assignBase[len(vm.assignBase)-1]
-	vm.assignBase = vm.assignBase[1:]
-	vm.assignTarget = vm.assignTarget[1:]
+	index := len(vm.assignBase) - 1
+	assign := vm.assignBase[index]
+	vm.assignBase = vm.assignBase[:index]
+	vm.assignTarget = vm.assignTarget[:index]
 
 	return assign
 }

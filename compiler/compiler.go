@@ -317,6 +317,48 @@ func (compiler *compiler) forStatement() Node {
 
 	variable := compiler.identifier()
 
+	if compiler.check(scanner.TokenEqual) {
+		return compiler.numericFor(variable)
+	} else if compiler.check(scanner.TokenComma) || compiler.check(scanner.TokenIn) {
+		return compiler.genericFor(variable)
+	} else {
+		compiler.error("Expected '=' or 'in' in for statement.")
+		return NumericForStatement{variable, nil, nil}
+	}
+}
+
+func (compiler *compiler) genericFor(variable Identifier) Node {
+	targets := []Identifier{variable}
+
+	for compiler.check(scanner.TokenComma) {
+		compiler.consume(scanner.TokenComma)
+		targets = append(targets, compiler.identifier())
+	}
+
+	compiler.consume(scanner.TokenIn)
+
+	// Use rightHandSideExpression because we actually do a
+	// multiple assignment with these
+
+	iterator := []Node{compiler.rightHandSideExpression()}
+
+	for compiler.check(scanner.TokenComma) {
+		compiler.consume(scanner.TokenComma)
+		iterator = append(iterator, compiler.rightHandSideExpression())
+	}
+
+	compiler.consume(scanner.TokenDo)
+	body := compiler.block()
+	compiler.consume(scanner.TokenEnd)
+
+	return GenericForStatement{
+		targets:  targets,
+		iterator: iterator,
+		body:     body,
+	}
+}
+
+func (compiler *compiler) numericFor(variable Identifier) Node {
 	compiler.consume(scanner.TokenEqual)
 
 	// Doesn't use rightHandSideExpression because we only
@@ -329,13 +371,13 @@ func (compiler *compiler) forStatement() Node {
 	}
 
 	compiler.consume(scanner.TokenDo)
-	block := compiler.block()
+	body := compiler.block()
 	compiler.consume(scanner.TokenEnd)
 
 	return NumericForStatement{
 		variable: variable,
 		values:   values,
-		body:     block,
+		body:     body,
 	}
 }
 

@@ -169,7 +169,7 @@ func TestChainedAssignment(t *testing.T) {
 	x, y = true, true
 	t, u = {}, {}
 	t.x, u.x = true, true
-	t[true], u[true] = 10
+	t[true], u[true] = 10, 10
 
 	assert x and y
 	assert t and u
@@ -389,6 +389,37 @@ func TestNumericFor(t *testing.T) {
 
 	expectNoErrors(t, text)
 }
+
+func TestGenericFor(t *testing.T) {
+	text := `
+	function oneToTen()
+		local i = 1
+		function iter()
+			if i > 10 then
+				return nil
+			else
+				local j = i
+				i = i + 1
+				return j
+			end
+		end
+
+		return iter
+	end
+
+	t = {[0]=1}
+
+	for x in oneToTen() do
+		t[x] = t[x-1] * 2
+	end
+
+	assert t[10] == 1024
+	`
+
+	expectNoErrors(t, text)
+}
+
+// todo: test for builtin `next` iterator
 
 // func TestStressFunctionCall(t *testing.T) {
 // 	text := `

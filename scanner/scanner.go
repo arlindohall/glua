@@ -44,6 +44,7 @@ const (
 	TokenGreaterEqual
 	TokenIdentifier
 	TokenIf
+	TokenIn
 	TokenLeftBrace
 	TokenLeftBracket
 	TokenLeftParen
@@ -237,6 +238,12 @@ func (scanner *scanner) scanToken() (Token, error) {
 		} else {
 			return scanner.makeToken("<", TokenLess), nil
 		}
+	case scanner.check('>'):
+		if scanner.check('=') {
+			return scanner.makeToken(">=", TokenGreaterEqual), nil
+		} else {
+			return scanner.makeToken(">", TokenGreater), nil
+		}
 	case scanner.check('='):
 		if scanner.check('=') {
 			return scanner.makeToken("==", TokenEqualEqual), nil
@@ -384,6 +391,8 @@ func (scanner *scanner) scanWord() (Token, error) {
 		return scanner.makeToken(source, TokenWhile), nil
 	case "for":
 		return scanner.makeToken(source, TokenFor), nil
+	case "in":
+		return scanner.makeToken(source, TokenIn), nil
 	case "if":
 		return scanner.makeToken(source, TokenIf), nil
 	case "then":

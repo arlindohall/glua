@@ -20,6 +20,7 @@ go run . <filename>
 ## Missing Features List
 
 - Weak tables
+- `next` builtin function
 
 ## Grammar
 
