@@ -143,7 +143,6 @@ func (vm *VM) run() value.Value {
 			// for security, clear stack
 			vm.clearStack(vm.popAssignment())
 		case compiler.OpLocalAllocate:
-			// todo: handle if there are fewer values than we need
 			vm.addLocalAssignment(vm.stackSize + int(vm.readByte()))
 		case compiler.OpLocalCleanup:
 			// stack=[x, y] stackSize=2
@@ -349,7 +348,6 @@ func (vm *VM) call(arity int, isAssignment bool) {
 	}
 }
 
-// todo: leaving nil values on the stack somehow?
 func (vm *VM) returnFrom(arity int) {
 	values := make([]value.Value, arity)
 

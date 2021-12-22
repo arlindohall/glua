@@ -274,7 +274,6 @@ func (statement ReturnStatement) Emit(compiler *compiler) {
 		value.Emit(compiler)
 	}
 
-	// todo: track arity at runtime in case of multiple return func
 	compiler.emitBytes(OpReturn, statement.arity)
 }
 
@@ -342,7 +341,7 @@ func (statement BlockStatement) printTree(indent int) {
 }
 
 func (statement BlockStatement) assign(compiler *compiler) Node {
-	// todo should blocks return their last value and thus assign if it's a table?
+	// todo: should blocks return their last value and thus assign if it's a table?
 	compiler.error("Cannot assign to block statement")
 	return statement
 }
@@ -889,7 +888,6 @@ func (primary VariablePrimary) printTree(indent int) {
 }
 
 func (primary VariablePrimary) assign(compiler *compiler) Node {
-	// todo: make this a stage in a chain of assignments one stack entry at a time
 	return VariableAssignment(primary)
 }
 

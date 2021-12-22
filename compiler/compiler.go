@@ -357,7 +357,6 @@ func (compiler *compiler) returnStatement() Node {
 	}
 }
 
-// todo: restrict this to statement not expression
 func (compiler *compiler) assignment() Node {
 	expression := compiler.expression()
 	if compiler.check(scanner.TokenEqual) || compiler.check(scanner.TokenComma) {
@@ -378,7 +377,6 @@ func (compiler *compiler) multipleAssignment(node Node) Node {
 
 	compiler.consume(scanner.TokenEqual)
 
-	// todo: remove chained assignment because of ambiguity
 	values := []Node{compiler.rightHandSideExpression()}
 
 	for compiler.check(scanner.TokenComma) {
