@@ -339,9 +339,15 @@ func (compiler *compiler) ifStatement() Node {
 	}
 }
 
-// todo: empty return statements
 func (compiler *compiler) returnStatement() Node {
 	compiler.consume(scanner.TokenReturn)
+
+	if compiler.check(scanner.TokenEnd) || compiler.check(scanner.TokenElse) {
+		return ReturnStatement{
+			arity:  1,
+			values: []Node{NilPrimary()},
+		}
+	}
 
 	var expressions []Node = []Node{compiler.expression()}
 

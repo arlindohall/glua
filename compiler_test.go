@@ -362,6 +362,18 @@ func TestFibonacciMultipleAssignment(t *testing.T) {
 	expectNoErrors(t, text)
 }
 
+func TestEmptyReturn(t *testing.T) {
+	text := `
+	function f()
+		return
+	end
+
+	assert f() == nil
+	`
+
+	expectNoErrors(t, text)
+}
+
 // func TestStressTableAccess(t *testing.T) {
 // 	text := `
 // 	x = 0
