@@ -778,7 +778,7 @@ type Call struct {
 	isAssignment bool
 }
 
-func (call Call) Emit(compiler *compiler) {
+func (call *Call) Emit(compiler *compiler) {
 	call.base.Emit(compiler)
 
 	arity := 0
@@ -793,7 +793,7 @@ func (call Call) Emit(compiler *compiler) {
 	compiler.emitByte(toByte(call.isAssignment))
 }
 
-func (call Call) printTree(indent int) {
+func (call *Call) printTree(indent int) {
 	printIndent(indent, "Call")
 	call.base.printTree(indent + 1)
 
@@ -807,7 +807,7 @@ func (call Call) printTree(indent int) {
 }
 
 // todo: is this too hacky?
-func (call Call) assign(compiler *compiler) Node {
+func (call *Call) assign(compiler *compiler) Node {
 	if compiler == nil {
 		call.isAssignment = true
 	} else {

@@ -314,8 +314,9 @@ func (vm *VM) addLocalAssignment(capacity int) {
 }
 
 func (vm *VM) popLocalAssignment() int {
-	assign := vm.localTarget[len(vm.localTarget)-1]
-	vm.localTarget = vm.localTarget[1:]
+	index := len(vm.localTarget) - 1
+	assign := vm.localTarget[index]
+	vm.localTarget = vm.localTarget[:index]
 
 	return assign
 }
@@ -348,6 +349,7 @@ func (vm *VM) call(arity int, isAssignment bool) {
 	}
 }
 
+// todo: leaving nil values on the stack somehow?
 func (vm *VM) returnFrom(arity int) {
 	values := make([]value.Value, arity)
 
@@ -373,13 +375,13 @@ func (vm *VM) returnFrom(arity int) {
 	vm.frame = context
 
 	if isAssignment && len(values) > 0 {
-		vm.push(values[0])
-	} else if isAssignment && len(values) == 0 {
-		vm.push(value.Nil{})
-	} else {
 		for _, value := range values {
 			vm.push(value)
 		}
+	} else if isAssignment && len(values) == 0 {
+		vm.push(value.Nil{})
+	} else {
+		vm.push(values[0])
 	}
 
 	if vm.frame != nil {

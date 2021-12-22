@@ -194,10 +194,10 @@ func (compiler *compiler) variableDeclaration(constructor func([]Identifier, []N
 
 	compiler.consume(scanner.TokenEqual)
 
-	values := []Node{compiler.expression()}
+	values := []Node{compiler.rightHandSideExpression()}
 
 	for compiler.check(scanner.TokenComma) {
-		values = append(values, compiler.expression())
+		values = append(values, compiler.rightHandSideExpression())
 	}
 
 	return constructor(names, values)
@@ -379,16 +379,11 @@ func (compiler *compiler) multipleAssignment(node Node) Node {
 	compiler.consume(scanner.TokenEqual)
 
 	// todo: remove chained assignment because of ambiguity
-	values := []Node{compiler.expression()}
+	values := []Node{compiler.rightHandSideExpression()}
 
 	for compiler.check(scanner.TokenComma) {
 		compiler.consume(scanner.TokenComma)
-		expression := compiler.expression()
-
-		switch expression.(type) {
-		case Call:
-			expression.assign(nil)
-		}
+		expression := compiler.rightHandSideExpression()
 
 		values = append(values, expression)
 	}
@@ -400,6 +395,17 @@ func (compiler *compiler) multipleAssignment(node Node) Node {
 
 	// add all expressions to right of equals to list inside assign
 	return assignment
+}
+
+func (compiler *compiler) rightHandSideExpression() Node {
+	expression := compiler.expression()
+
+	switch expression.(type) {
+	case *Call:
+		expression.assign(nil)
+	}
+
+	return expression
 }
 
 func (compiler *compiler) identifier() Identifier {
@@ -596,7 +602,7 @@ func (compiler *compiler) call() Node {
 		case scanner.TokenLeftParen:
 			args := compiler.arguments()
 
-			primary = Call{
+			primary = &Call{
 				base:         primary,
 				arguments:    args,
 				isAssignment: false,

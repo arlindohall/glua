@@ -342,6 +342,26 @@ func TestArity(t *testing.T) {
 	}
 }
 
+func TestFibonacciMultipleAssignment(t *testing.T) {
+	text := `
+	function fib(x)
+		if x <= 2 then
+			return 1, 1
+		end
+
+		local f1, f2 = fib(x-1)
+		return f1+f2, f1
+	end
+
+	a, b = fib(10)
+	assert a == 55
+	assert b == 34
+	assert fib(10) == 55
+	`
+
+	expectNoErrors(t, text)
+}
+
 // func TestStressTableAccess(t *testing.T) {
 // 	text := `
 // 	x = 0
