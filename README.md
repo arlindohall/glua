@@ -20,10 +20,11 @@ go run . <filename>
 ## Missing Features List
 
 - Weak tables
-- Multiple return
 - For loops/iterators
 
 ## Grammar
+
+_This is really out of date but I don't want to bother fixing it right now_.
 
 I based this grammar on the Lox Grammar[1]
 
