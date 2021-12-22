@@ -374,6 +374,22 @@ func TestEmptyReturn(t *testing.T) {
 	expectNoErrors(t, text)
 }
 
+func TestNumericFor(t *testing.T) {
+	text := `
+	t = {}
+	for x = 1, 2, 3, 4 do
+		t[x] = x * 2
+	end
+
+	assert t[1] == 2
+	assert t[2] == 4
+	assert t[3] == 6
+	assert t[4] == 8
+	`
+
+	expectNoErrors(t, text)
+}
+
 // func TestStressFunctionCall(t *testing.T) {
 // 	text := `
 // 	function fib(x)

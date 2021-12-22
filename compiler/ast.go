@@ -217,6 +217,46 @@ func (statement WhileStatement) assign(compiler *compiler) Node {
 	return statement
 }
 
+type NumericForStatement struct {
+	variable Identifier
+	values   []Node
+	body     Node
+}
+
+// todo: is it better not to inline these? this way there's no
+// bounds checks but if we don't inline them, it's less code which
+// would also mean less loading from memory
+func (statement NumericForStatement) Emit(compiler *compiler) {
+	for _, val := range statement.values {
+		compiler.startScope()
+		compiler.addLocal(statement.variable)
+		val.Emit(compiler)
+
+		statement.body.Emit(compiler)
+
+		compiler.emitByte(OpPop)
+		compiler.endScope()
+	}
+}
+
+func (statement NumericForStatement) printTree(indent int) {
+	printIndent(indent, "NumericFor")
+	printIndent(indent+1, string(statement.variable))
+
+	for _, val := range statement.values {
+		val.printTree(indent + 2)
+	}
+
+	statement.body.printTree(indent + 1)
+}
+
+func (statement NumericForStatement) assign(compiler *compiler) Node {
+	compiler.error("Cannot assign to for statement")
+	return statement
+}
+
+type GenericForStatement struct{}
+
 type IfStatement struct {
 	condition      Node
 	body           Node

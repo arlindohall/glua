@@ -37,6 +37,7 @@ const (
 	TokenEqual
 	TokenEqualEqual
 	TokenFalse
+	TokenFor
 	TokenFunction
 	TokenGlobal
 	TokenGreater
@@ -381,6 +382,8 @@ func (scanner *scanner) scanWord() (Token, error) {
 		return scanner.makeToken(source, TokenLocal), nil
 	case "while":
 		return scanner.makeToken(source, TokenWhile), nil
+	case "for":
+		return scanner.makeToken(source, TokenFor), nil
 	case "if":
 		return scanner.makeToken(source, TokenIf), nil
 	case "then":

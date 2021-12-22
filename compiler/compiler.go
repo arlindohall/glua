@@ -214,6 +214,8 @@ func (compiler *compiler) statement() Node {
 		return compiler.function()
 	case scanner.TokenWhile:
 		return compiler.whileStatement()
+	case scanner.TokenFor:
+		return compiler.forStatement()
 	case scanner.TokenIf:
 		return compiler.ifStatement()
 	case scanner.TokenDo:
@@ -295,7 +297,6 @@ func (compiler *compiler) terminateBlock() bool {
 	}
 }
 
-// todo: replace block with do/block/end
 func (compiler *compiler) whileStatement() Node {
 	compiler.consume(scanner.TokenWhile)
 
@@ -308,6 +309,33 @@ func (compiler *compiler) whileStatement() Node {
 	return WhileStatement{
 		condition: expression,
 		body:      body,
+	}
+}
+
+func (compiler *compiler) forStatement() Node {
+	compiler.consume(scanner.TokenFor)
+
+	variable := compiler.identifier()
+
+	compiler.consume(scanner.TokenEqual)
+
+	// Doesn't use rightHandSideExpression because we only
+	// use the first return from any calls in this position
+	values := []Node{compiler.expression()}
+
+	for compiler.check(scanner.TokenComma) {
+		compiler.consume(scanner.TokenComma)
+		values = append(values, compiler.expression())
+	}
+
+	compiler.consume(scanner.TokenDo)
+	block := compiler.block()
+	compiler.consume(scanner.TokenEnd)
+
+	return NumericForStatement{
+		variable: variable,
+		values:   values,
+		body:     block,
 	}
 }
 
